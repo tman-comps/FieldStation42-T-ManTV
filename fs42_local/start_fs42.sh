@@ -34,7 +34,8 @@ for i in $(seq 1 "$NAS_WAIT"); do
 done
 
 source env/bin/activate
-python3 "$LOCAL/apply_patches.py" >> "$LOG/launcher.log" 2>&1
+# apply_patches.py is no longer run: its changes are normal commits in this fork now
+# (running it on the committed code would insert some blocks a second time).
 # direct archive.org links + stub text cache (refreshes links older than 2 days)
 ( flock -n "$LOCAL/.archive_urls.lock" python3 "$LOCAL/archive_urls.py" >> "$LOG/archive_urls.log" 2>&1 ) 9>&- &
 flock "$LOCAL/.schedule.lock" python3 "$LOCAL/keep_schedule.py" "$SCHEDULE_DAYS" >> "$LOG/schedule.log" 2>&1
