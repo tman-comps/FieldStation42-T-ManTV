@@ -168,6 +168,54 @@ def test_musicvideo_nfo_reads_plot_and_overlay_is_off():
     assert "music" not in NFOAgent.OVERLAY_TYPES
 
 
+# --- Rating bug ------------------------------------------------------------
+
+def test_nfo_reads_content_rating():
+    ep = NFOAgent.parse_nfo_string(
+        "<episodedetails><title>Pilot</title><mpaa>TV-Y7</mpaa></episodedetails>")
+    assert ep["content_rating"] == "TV-Y7"
+    movie = NFOAgent.parse_nfo_string(
+        "<movie><title>Big</title><certification>US:PG</certification><mpaa>PG</mpaa></movie>")
+    assert movie["content_rating"] == "US:PG"
+    assert "content_rating" not in NFOAgent.parse_nfo_string("<movie><title>Old</title></movie>")
+
+
+def test_folder_tvshow_nfo_rates_files_without_one(tmp_path):
+    write(tmp_path / "Show" / "tvshow.nfo", "<tvshow><title>Show</title><mpaa>TV-G</mpaa></tvshow>")
+    stub = write(tmp_path / "Show" / "Season 1" / "e01.strm", "http://x\n")
+    assert MediaProcessor.extract_metadata(stub, "video") == {"type": "rating", "content_rating": "TV-G"}
+    # an episode NFO without a rating keeps its fields and gains the show's rating
+    vid = write(tmp_path / "Show" / "Season 1" / "e02.mkv", "")
+    write(tmp_path / "Show" / "Season 1" / "e02.nfo", "<episodedetails><title>Two</title></episodedetails>")
+    meta = MediaProcessor.extract_metadata(vid, "video")
+    assert meta["title"] == "Two" and meta["content_rating"] == "TV-G"
+    # movies never borrow a folder rating; no tvshow.nfo -> nothing
+    mov = write(tmp_path / "Show" / "m.mkv", "")
+    write(tmp_path / "Show" / "m.nfo", "<movie><title>M</title></movie>")
+    assert "content_rating" not in MediaProcessor.extract_metadata(mov, "video")
+    assert MediaProcessor.extract_metadata(write(tmp_path / "Other" / "x.mkv", ""), "video") == {}
+
+
+def test_clean_rating():
+    assert tmantv.clean_rating("US:TV-Y7 / US:TV-G") == "TV-Y7"
+    assert tmantv.clean_rating("Rated PG-13") == "PG-13"
+    assert tmantv.clean_rating("") == ""
+
+
+def test_content_rating_reads_file_meta_and_caches(tmp_path):
+    import sqlite3
+    db = str(tmp_path / "fs42.db")
+    real = str(tmp_path / "nas" / "e01.strm")
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE file_meta (path TEXT, meta TEXT)")
+        conn.execute("INSERT INTO file_meta VALUES (?, ?)", (real, json.dumps({"type": "rating", "content_rating": "US:TV-PG"})))
+    tmantv._ratings.update(db=None, mtime=None, map={})
+    assert tmantv.content_rating("catalog/kids/e01.strm", realpath=real, db_path=db) == "TV-PG"
+    # cached: a second lookup doesn't need the realpath
+    assert tmantv.content_rating("catalog/kids/e01.strm", db_path=db) == "TV-PG"
+    assert tmantv.content_rating("catalog/kids/none.strm", realpath="/nope", db_path=db) == ""
+
+
 # --- play_file with a fake mpv ----------------------------------------------
 
 class FakeMPV:

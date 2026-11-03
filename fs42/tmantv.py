@@ -144,3 +144,41 @@ def proxy_to_archive(file_path):
 def archive_url(file_path):
     # lavf:// proxy URL -> plain lavf:// archive.org redirect URL
     return "lavf://https://archive.org/download/" + file_path[len("lavf://" + PROXY):]
+
+
+# --- Rating bug: content_rating for the status socket (fs42/osd/rating_display.py) ---
+
+_ratings = {"db": None, "mtime": None, "map": {}}
+
+
+def content_rating(path, realpath=None, db_path=None):
+    # Rating saved in file_meta at catalog build ("" if none); cached per file until the db changes
+    try:
+        if db_path is None:
+            from fs42.station_manager import StationManager
+            db_path = StationManager().server_conf["db_path"]
+        m = os.path.getmtime(db_path)
+        if (db_path, m) != (_ratings["db"], _ratings["mtime"]):
+            _ratings.update(db=db_path, mtime=m, map={})
+        if path in _ratings["map"]:
+            return _ratings["map"][path]
+        import sqlite3
+        real = realpath or os.path.realpath(os.path.abspath(path))
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute("SELECT meta FROM file_meta WHERE path = ?", (real,)).fetchone()
+        meta = json.loads(row[0]) if row and row[0] else {}
+        rating = clean_rating(meta.get("content_rating", "")) if isinstance(meta, dict) else ""
+        _ratings["map"][path] = rating
+        return rating
+    except Exception:
+        return ""
+
+
+def clean_rating(rating):
+    # "US:TV-Y7 / US:TV-G" -> "TV-Y7", "Rated PG-13" -> "PG-13"
+    rating = str(rating or "").split("/", 1)[0].strip()
+    if ":" in rating:
+        rating = rating.split(":", 1)[1].strip()
+    if rating.upper().startswith("RATED "):
+        rating = rating[6:].strip()
+    return rating

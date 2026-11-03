@@ -23,3 +23,15 @@ Where each change lives. Most of these used to be find/replace entries in `fs42_
 | NFO "now playing" overlay off (froze playback); music video NFOs read `plot` | `fs42/nfo_agent.py` |
 | Guide: short blocks, ended shows hidden, `.program-desc`, 90s CRT theme | `fs42/fs42_server/static/customguide/` |
 | Logo fade in/out | `fs42/osd/logo_display.py` (old OSD only; logos are off) |
+| Rating bug (TV-Y7, PG-13… top-right for 12 s when a show starts; never on ads). From MoeFwacky's fork, plus: keeps image shape, reads a show folder's `tvshow.nfo` when a file has no rating | `fs42/osd/rating_display.py`, `nfo_agent.py` `folder_rating`, `media_processor.py` `extract_metadata`, `tmantv.content_rating`, `station_player.py` status socket; images in `osd/ratings/` |
+
+## Rating bug setup
+
+The rating comes from `<mpaa>` or `<certification>` in a file's own `.nfo`, or else from the nearest `tvshow.nfo` (file's folder, up to 3 levels up; works for `.strm` stubs). Movies only use their own NFO. It is saved at catalog build, so rebuild the catalog after adding ratings. The image is `osd/ratings/<RATING>.png` (name match ignores case; `US:` and `Rated ` are dropped). No rating or no image = no bug.
+
+Turn it on: add this to `osd/osd.json` (not tracked) and run the OSD (`fs42/osd/main.py`, started by `~/.local/bin/fs42-osd`). The margins match the old logo spot inside the CRT's overscan; the channel number stays top-left.
+
+```json
+{ "type": "RatingDisplay", "directory": "osd/ratings", "halign": "RIGHT", "valign": "TOP",
+  "width": 0.08, "height": 0.12, "x_margin": 0.22, "y_margin": 0.13, "display_time": 12.0 }
+```

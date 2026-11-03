@@ -281,6 +281,9 @@ class NFOAgent:
         def as_int(raw):
             return int(raw) if raw.isdigit() else raw
 
+        # Rating bug: TV-PG, US:TV-Y7, PG-13...
+        rating = get("certification") or get("mpaa")
+
         tag = root.tag
         if tag == "musicvideo":
             meta = {
@@ -299,6 +302,7 @@ class NFOAgent:
                 "year": get("year") or get("premiered")[:4],
                 "plot": get("plot") or get("outline"),
                 "genre": get("genre"),
+                "content_rating": rating,
             }
         elif tag == "episodedetails":
             meta = {
@@ -309,6 +313,7 @@ class NFOAgent:
                 "episode": as_int(get("episode")),
                 "aired": get("aired"),
                 "plot": get("plot") or get("outline"),
+                "content_rating": rating,
             }
         elif tag == "tvshow":
             meta = {
@@ -317,6 +322,7 @@ class NFOAgent:
                 "year": get("year") or get("premiered")[:4],
                 "plot": get("plot") or get("outline"),
                 "genre": get("genre"),
+                "content_rating": rating,
             }
         else:
             # Unknown/unsupported Kodi root tag — keep the title and any of the
@@ -329,6 +335,8 @@ class NFOAgent:
                 opt_value = get(opt)
                 if opt_value:
                     meta[opt] = opt_value
+            if rating:
+                meta["content_rating"] = rating
 
         # Drop empty-string fields; keep non-string values (e.g. int season).
         meta = {k: v for k, v in meta.items() if v != ""}
@@ -355,6 +363,27 @@ class NFOAgent:
         if meta is None:
             _logger.warning(f"NFO file {nfo_path} could not be parsed")
         return meta
+
+    @staticmethod
+    def folder_rating(file_path, levels=3):
+        # T-ManTV: rating from the nearest tvshow.nfo (file's folder, then up to
+        # `levels` parents), so one file per show folder rates every episode.
+        folder = os.path.dirname(os.path.realpath(file_path))
+        for _ in range(levels + 1):
+            nfo = os.path.join(folder, "tvshow.nfo")
+            if os.path.isfile(nfo):
+                try:
+                    with open(nfo, "r", encoding="utf-8") as f:
+                        meta = NFOAgent.parse_nfo_string(f.read())
+                except Exception as e:
+                    _logger.warning(f"Failed to read series NFO {nfo}: {e}")
+                    return ""
+                return (meta or {}).get("content_rating", "")
+            parent = os.path.dirname(folder)
+            if parent == folder:
+                break
+            folder = parent
+        return ""
 
     @staticmethod
     def overlay_lines(meta):

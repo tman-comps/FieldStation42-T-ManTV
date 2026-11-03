@@ -57,6 +57,7 @@ def update_status_socket(
     content_type=None,
     awaiting_pin=False,
     pin_digits_entered=0,
+    content_rating=None,
 ):
     status_obj = {
         "status": status,
@@ -74,6 +75,8 @@ def update_status_socket(
         status_obj["file_path"] = file_path
     if content_type is not None:
         status_obj["content_type"] = content_type
+    if content_rating:
+        status_obj["content_rating"] = content_rating  # T-ManTV rating bug
     status_socket = StationManager().server_conf["status_socket"]
     as_str = json.dumps(status_obj)
     with open(status_socket, "w") as fp:
@@ -528,7 +531,7 @@ class StationPlayer:
             else:
                 self.mpv.vf = self.reception.filter()
 
-    def play_file(self, file_path, file_duration=None, offset_seconds=None, is_stream=False, title="Unknown", content_type=None, media_type=None):
+    def play_file(self, file_path, file_duration=None, offset_seconds=None, is_stream=False, title="Unknown", content_type=None, media_type=None, realpath=None):
         try:
             if tmantv.stub_text(file_path) is not None or os.path.exists(file_path) or is_stream or AutoBumpAgent.is_autobump_url(file_path):  # FS42 local: cached stubs skip the NAS
                 self._l.debug(f"%%%Attempting to play {file_path}")
@@ -554,6 +557,7 @@ class StationPlayer:
                         duration=duration,
                         file_path=file_path,
                         content_type=content_type,
+                        content_rating=tmantv.content_rating(file_path, realpath) if content_type == "feature" and media_type != "audio" else None,
                     )
                           
                 else:
@@ -1270,7 +1274,7 @@ class StationPlayer:
                 title = play_point.block_title
                 content_type = getattr(entry, 'content_type', 'feature')  # Get content_type from entry, default to 'feature'
                 media_type = getattr(entry, 'media_type', 'video')  # Get media_type from entry, default to 'video'
-                worked = self.play_file(entry.path, file_duration=entry.duration, offset_seconds=total_skip, is_stream=is_stream, title=title, content_type=content_type, media_type=media_type)
+                worked = self.play_file(entry.path, file_duration=entry.duration, offset_seconds=total_skip, is_stream=is_stream, title=title, content_type=content_type, media_type=media_type, realpath=getattr(entry, "realpath", None))
                 if self._pending_response:
                     response = self._pending_response
                     self._pending_response = None

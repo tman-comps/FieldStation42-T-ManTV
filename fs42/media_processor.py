@@ -85,7 +85,14 @@ class MediaProcessor:
             return MediaProcessor.extract_audio_metadata(file_path)
 
         from fs42.nfo_agent import NFOAgent
-        return NFOAgent.read_metadata_from_disk(file_path) or {}
+        meta = NFOAgent.read_metadata_from_disk(file_path) or {}
+        if not meta.get("content_rating") and meta.get("type") in (None, "episode", "plaintext"):
+            # T-ManTV: no rating in the file's own NFO (or no NFO) -> show folder's tvshow.nfo
+            rating = NFOAgent.folder_rating(file_path)
+            if rating:
+                meta = dict(meta) if meta else {"type": "rating"}
+                meta["content_rating"] = rating
+        return meta
 
     @staticmethod
     def extract_audio_metadata(file_path: str) -> dict:
