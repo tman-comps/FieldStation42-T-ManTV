@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 import os
 import sys
@@ -15,10 +16,35 @@ import board
 # pip3 install raspberrypi-tm1637
 import tm1637
 
+_l = logging.getLogger("CABLEBOX")
+
+# All pins are BCM GPIO numbers; runtime/cable_box.json overrides "keypad" and/or "display"
+PINOUT_FILE = "runtime/cable_box.json"
+DEFAULT_PINOUT = {
+    "keypad": {"cols": [26, 20, 21], "rows": [5, 6, 13, 19]},
+    "display": {"clk": 17, "dio": 18},
+}
+
+
+def load_pinout():
+    pinout = dict(DEFAULT_PINOUT)
+    if os.path.exists(PINOUT_FILE):
+        _l.info(f"Loading pinout from {PINOUT_FILE}")
+        try:
+            with open(PINOUT_FILE) as fp:
+                overrides = json.load(fp)
+            for section in ("keypad", "display"):
+                if section in overrides:
+                    pinout[section] = overrides[section]
+        except Exception as e:
+            _l.error(f"Error loading pinout from {PINOUT_FILE}, using defaults: {e}")
+            pinout = dict(DEFAULT_PINOUT)
+    return pinout
+
 
 def get_temperature():
     a = str(subprocess.check_output(["vcgencmd", "measure_temp"]))
-    print("A is", a)
+    _l.debug(f"Temperature reading: {a}")
     b = a.split("=")[1]
     c = float(b.split("'")[0])
     # output in form: temp=49.4'C
@@ -27,18 +53,24 @@ def get_temperature():
     # return c
 
 
+def channel_label(num):
+    return f"{num:02d}".rjust(4)
+
+
 class CableBox:
     def __init__(self, channel_socket="runtime/channel.socket", status_socket="runtime/play_status.socket", press_socket="runtime/press.socket"):
         self.channel_socket = channel_socket
         self.status_socket = status_socket
         self.press_socket = press_socket
 
-        self.tm = tm1637.TM1637(clk=17, dio=18)
+        pinout = load_pinout()
+
+        self.tm = tm1637.TM1637(clk=pinout["display"]["clk"], dio=pinout["display"]["dio"])
         self.tm.brightness(0)
         self.tm.show("FS42")
 
-        column_pins = [digitalio.DigitalInOut(x) for x in (board.D26, board.D20, board.D21)]
-        row_pins = [digitalio.DigitalInOut(x) for x in (board.D5, board.D6, board.D13, board.D19)]
+        column_pins = [digitalio.DigitalInOut(getattr(board, f"D{n}")) for n in pinout["keypad"]["cols"]]
+        row_pins = [digitalio.DigitalInOut(getattr(board, f"D{n}")) for n in pinout["keypad"]["rows"]]
 
         # Define keypad layout
         keys = (("1", "2", "3"), ("4", "5", "6"), ("7", "8", "9"), ("down", "0", "up"))
@@ -79,7 +111,7 @@ class CableBox:
             # self.tm.show(f"{temp}*")
             self.temp_mode = True
         else:
-            print(f"Sending command: {as_str}")
+            _l.info(f"Sending command: {as_str}")
             with open(self.channel_socket, "w") as fp:
                 fp.write(as_str)
 
@@ -89,13 +121,13 @@ class CableBox:
             as_str = fp.read()
 
             if as_str != self.last_stat:
-                print(f"Status changed: {as_str}")
+                _l.info(f"Status changed: {as_str}")
                 self.last_stat = as_str
                 try:
                     new_stat = json.loads(as_str)
                 except:
                     # assume that it was a partial read and try again next time
-                    print(f"Error decoding status: {as_str}")
+                    _l.warning(f"Error decoding status: {as_str}")
         return new_stat
 
     def check_press(self):
@@ -136,7 +168,10 @@ class CableBox:
                 in_selection = True
 
                 as_num = None
-                print("Key pressed:", key_pressed)
+                _l.info(f"Key pressed: {key_pressed}")
+
+                if key_pressed in ("up", "down"):
+                    last_pressed = ""
 
                 if key_pressed == "up":
                     self.send_command("up")
@@ -150,21 +185,18 @@ class CableBox:
                         self.tm.show("----")
                     in_selection = False
                 else:
-                    try:
-                        as_num = int(last_pressed + key_pressed)
-                        last_pressed = key_pressed
-                        self.tm.show(f"  {as_num:02d}")
-                    except Exception:
-                        pass
+                    last_pressed += key_pressed
+                    as_num = int(last_pressed)
+                    self.tm.show(channel_label(as_num))
 
                 time.sleep(0.3)
 
             # see if we need to reset selection or apply it
             if in_selection:
                 tick_diff = time.monotonic() - last_selection_tick
-                if tick_diff > 1.5:
-                    print(f"Applying selection CH{as_num:02d}")
-                    self.tm.show(f"CH{as_num:02d}")
+                if tick_diff > 1.5 or len(last_pressed) >= 3:
+                    _l.info(f"Applying selection {as_num}")
+                    self.tm.show(channel_label(as_num))
                     last_selection_tick = -1
                     in_selection = False
                     last_pressed = ""
@@ -177,7 +209,7 @@ class CableBox:
                 remote_digits = self.check_press()
                 if remote_digits:
                     self.last_button_time = time.monotonic()
-                    self.tm.show(f"  {int(remote_digits):02d}")
+                    self.tm.show(channel_label(int(remote_digits)))
 
             new_stat = self.check_status()
             if new_stat:
@@ -188,8 +220,8 @@ class CableBox:
                         self.last_button_time = time.monotonic()
                         channel_num = new_channel_num
                     if channel_num >= 0:
-                        self.tm.show(f"CH{channel_num:02d}")
-                        print("Set channel: ", channel_num)
+                        self.tm.show(channel_label(channel_num))
+                        _l.info(f"Set channel: {channel_num}")
                     else:
                         self.tm.show("FS42")
                 except:
@@ -210,5 +242,6 @@ class CableBox:
             tick_count += 1
 
 if __name__ == "__main__":
+    logging.basicConfig(format="%(asctime)s %(levelname)s:%(name)s:%(message)s", level=logging.INFO)
     cable_box = CableBox()
     cable_box.event_loop()

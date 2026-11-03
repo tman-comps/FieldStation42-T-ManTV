@@ -1,6 +1,6 @@
 # Pay-Per-View (PPV)
 
-Video-on-demand interface for FieldStation42. Browse movies with page up/down keys, hit ENTER to play. Shows a slideshow with posters, titles, and descriptions.
+Video-on-demand interface for FieldStation42. Browse movies with the remote's navigation keys, hit confirm to play. Shows a slideshow with posters, titles, and descriptions.
 
 Metadata handling: checks for local NFO files first, falls back to TMDB API if missing. You can manually curate some content and automate the rest. Optimized for CRT displays.
 
@@ -41,9 +41,10 @@ For testing, you can access at `http://localhost:4242/static/ppv/ppv.html?channe
 
 ## Controls
 
-- **Page-Up - Page-Down** - Navigate movies
-- **ENTER/SPACE** - Play selected movie
-- **P** - Pause/resume slideshow (10s auto-advance)
+PPV ignores the keyboard directly. Keys arrive through `POST /ppv/{channel}/key/{PageUp|PageDown|Enter}`, sent by the remote controller (`navigation_up`, `navigation_down`, `confirm` in `fs42/pi/remote_controller.py`) or the web remote's nav pad.
+
+- **navigation_up / navigation_down** (PageUp / PageDown) - Navigate movies
+- **confirm** (Enter) - Play selected movie
 
 ## Manual Metadata
 
@@ -78,12 +79,22 @@ Mix and match as needed. TMDB data gets cached in `catalog/.tmdb_cache/`
 - `css` - custom CSS file
 - `bg` - background image
 - `bg_color` - background color
+- `music` - path (relative to the project root) to a folder of audio files to use as this channel's background music, e.g. `runtime/ppv_music/my_folder`
+- `random_music` - `true` (default) plays the playlist in random order; `false` plays it in the order the files are listed
 
 Example: `?channel=42&duration=15000&variation=retro`
 
 ## Background Music
 
-Create `fs42/fs42_server/static/ppv/music_playlist.json`:
+Each PPV channel can have its own playlist by adding `&music=<path>` to its `web_url`, e.g.:
+
+```
+/static/ppv/ppv.html?channel=42&music=runtime/ppv_music/my_folder
+```
+
+Any audio files (`.mp3`, `.ogg`, `.wav`, `.flac`, `.aac`, `.m4a`, `.opus`) placed in that folder are picked up automatically.
+
+If `music` isn't set, the channel falls back to the shared playlist defined in `fs42/fs42_server/static/ppv/music_playlist.json`:
 
 ```json
 {

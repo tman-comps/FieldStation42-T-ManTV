@@ -22,6 +22,11 @@ from fs42.autobump_agent import AutoBumpAgent
 
 # logging.basicConfig(format="%(asctime)s %(levelname)s:%(name)s:%(message)s", level=logging.INFO)
 
+# share of a slot that is not content (commercials and break bumps)
+# at least ~2 minutes per 30, ~4 per 60; no more than ~30% commercials
+MIN_BREAK_RATIO = 0.067
+MAX_BREAK_RATIO = 0.30
+
 class ClipShowKickBack(Exception):
 
     def __init__(self, message, clip_tag):
@@ -36,14 +41,32 @@ class LiquidSchedule:
         self.catalog = ShowCatalog(conf)
         self._load_blocks()
 
-    def _calc_target_duration(self, duration, increment=None):
+    def _calc_target_duration(self, duration, increment=None, break_info=None, break_strategy=None):
         # get the target duration for the show based on the schedule increment
         if increment is None:
             increment = self.conf["schedule_increment"]
+
+        # everything that has to play in the slot: content plus any start/end bumps
+        required = duration
+        if break_info:
+            for key in ("start_bump", "end_bump"):
+                bump = break_info.get(key)
+                if bump:
+                    required += bump["duration"]
+
         multiple = increment * 60
         if multiple == 0:
-            return duration
-        return multiple * math.ceil(duration / multiple)
+            return required
+        target = multiple * math.ceil(required / multiple)
+
+        # if there is too little room for commercials, try the next increment up
+        # as long as that doesn't leave the slot mostly commercials
+        if not self.conf.get("commercial_free") and break_strategy == "standard":
+            if (target - required) / target < MIN_BREAK_RATIO:
+                bumped = target + multiple
+                if (bumped - required) / bumped <= MAX_BREAK_RATIO:
+                    target = bumped
+        return target
 
     def _load_blocks(self):
         self._blocks = LiquidAPI.get_blocks(self.conf)
@@ -79,6 +102,14 @@ class LiquidSchedule:
         LiquidAPI.add_blocks(self.conf, new_blocks)
         self._load_blocks()
 
+    @staticmethod
+    def _slot_duration_limit(slot_config, key, tag_index):
+        # minutes in config, seconds out - a list applies per tag position
+        limit = slot_config.get(key)
+        if isinstance(limit, list):
+            limit = limit[tag_index] if tag_index is not None and 0 <= tag_index < len(limit) else None
+        return float(limit) * 60 if limit is not None else None
+
     def _fill(self, slot_config, tag_str, current_mark, tag_index=None, exclusion_index=None, first_in_slot=True) -> LiquidBlock:
         seq_key = None
         candidate = None
@@ -87,7 +118,13 @@ class LiquidSchedule:
         # see if this is a series with a sequence defined
         if "sequence" in slot_config:
             seq_name = slot_config["sequence"]
-            
+
+            if "min_duration" in slot_config or "max_duration" in slot_config:
+                self._l.warning(
+                    f"[{self.conf['network_name']}] min_duration/max_duration are ignored "
+                    f"for sequence slots (tag={tag_str} at {current_mark})"
+                )
+
             if slot_config.get("sequence_strategy") == "random_show" and tag_index is not None:
                 seq_ids = slot_config.get("sequence_id_array", [])
                     
@@ -103,17 +140,29 @@ class LiquidSchedule:
 
             seq_key = SequenceAPI.make_sequence_key(self.conf, seq_name, tag_str)
         else:
+            min_duration = self._slot_duration_limit(slot_config, "min_duration", tag_index)
+            max_duration = self._slot_duration_limit(slot_config, "max_duration", tag_index)
+
+            # if min is higher than max, defer to max and ignore min
+            if min_duration is not None and max_duration is not None and min_duration > max_duration:
+                self._l.warning(
+                    f"[{self.conf['network_name']}] min_duration is greater than max_duration "
+                    f"for tag={tag_str} at {current_mark} - ignoring min_duration"
+                )
+                min_duration = None
+
             try:
                 candidate = self.catalog.find_candidate(
                     tag_str, timings.HOUR * 23, current_mark,
-                    exclusion_index=exclusion_index, proposed_start=current_mark
+                    exclusion_index=exclusion_index, proposed_start=current_mark,
+                    min_duration=min_duration, max_duration=max_duration
                 )
             except MatchingContentNotFound:
                 if exclusion_index:
                     # Exclusion may have blocked everything - retry without it.
                     # If this also fails it is a genuine content shortage.
                     try:
-                        candidate = self.catalog.find_candidate(tag_str, timings.HOUR * 23, current_mark)
+                        candidate = self.catalog.find_candidate(tag_str, timings.HOUR * 23, current_mark, min_duration=min_duration, max_duration=max_duration)
                         self._l.warning(
                             f"[{self.conf['network_name']}] Sibling exclusion blocked all candidates "
                             f"for tag={tag_str} at {current_mark} - "
@@ -138,7 +187,7 @@ class LiquidSchedule:
             # right here - figure out where we are in the hour so we know if we should use start_bump
             break_info, break_strategy, increment = self._break_info(slot_config, tag_str, candidate.path, first_in_slot)
 
-            target_duration = self._calc_target_duration(candidate.duration, increment)
+            target_duration = self._calc_target_duration(candidate.duration, increment, break_info, break_strategy)
             next_mark = current_mark + datetime.timedelta(seconds=target_duration)
             new_block = LiquidBlock(candidate, current_mark, next_mark, candidate.title, break_strategy, break_info)
             # add sequence information
@@ -170,8 +219,11 @@ class LiquidSchedule:
         else:
             break_info, break_strategy, schedule_increment = self._break_info(slot_config, tag_str, clip_content[0].path)
             clip_block = LiquidClipBlock(clip_content, current_mark, timings.HOUR, tag_str, break_strategy, break_info)
-            target_duration = self._calc_target_duration(clip_block.content_duration())
-            next_mark = current_mark + datetime.timedelta(seconds=target_duration)
+            if schedule_increment:
+                duration = clip_config.get("total_duration")
+            else:
+                duration = self._calc_target_duration(clip_block.content_duration(), 0, break_info)
+            next_mark = current_mark + datetime.timedelta(seconds=duration)
             clip_block.end_time = next_mark
             new_block = clip_block
         return (new_block, next_mark)
@@ -224,8 +276,8 @@ class LiquidSchedule:
     @staticmethod
     def _get_block_tag(block):
         """Safely extract the content tag from a block, returning None for
-        off-air, loop, or clip blocks where a single tag doesn't apply."""
-        if isinstance(block, (LiquidOffAirBlock, LiquidLoopBlock)):
+        off-air (video or autobump), loop, or clip blocks where a single tag doesn't apply."""
+        if isinstance(block, (LiquidOffAirBlock, LiquidWebBlock, LiquidLoopBlock)):
             return None
         if isinstance(block, LiquidClipBlock):
             # clip blocks have a list of content - use the block title which is set to the tag string
@@ -429,20 +481,24 @@ class LiquidSchedule:
 
                 # we are offair, so set onair off
                 onair_flag = False
-                
+
+                # make it for one hour.
+                # TODO: handle when it starts at half hour - just go to next hour (not always one hour)
+                next_mark = (current_mark + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+
                 if candidate is None and "off_air_autobump" in self.conf:
-                        candidate = AutoBumpAgent.fill_block(self.conf, timings.HOUR)
+                    off_air_seconds = (next_mark - current_mark).total_seconds()
+                    if sign_off:
+                        off_air_seconds -= min(float(sign_off.duration), off_air_seconds)
+                    candidate = AutoBumpAgent.fill_block(self.conf, max(off_air_seconds, 1))
                 if candidate is None:
                     self._l.error(f"Schedule logic error: no time slots configured for {current_mark}")
                     self._l.error("This indicates that the station is offair, but offair content is not configured")
                     self._l.error(f"Configure 'off_air_video' or 'off_air_image' for {self.conf['network_name']}")
                     sys.exit(-1)
 
-                # make it for one hour.
-                # TODO: handle when it starts at half hour - just go to next hour (not always one hour)
-                next_mark = (current_mark + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
                 if candidate.tag == AutoBumpAgent.tag_str:
-                    new_block = LiquidWebBlock(candidate, current_mark, next_mark, "Offair")
+                    new_block = LiquidWebBlock(candidate, current_mark, next_mark, "Offair", sign_off=sign_off)
                 else:
                     new_block = LiquidOffAirBlock(candidate, current_mark, next_mark, "Offair", sign_off=sign_off)
 
@@ -488,16 +544,13 @@ class LiquidSchedule:
         start_building = None
         end_building = None
         if current_end:
-            # then there is an existing schedule
+            # then there is an existing schedule - it already carries any offset, so continue exactly where it ends
             start_building = current_end
         else:
-            # then there is no schedule, so start with today (but at midnight)
+            # then there is no schedule, so start with today (but at midnight), shifted by any offset
             now = datetime.datetime.now()
             start_building = now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-        if "schedule_offset" in self.conf:
-            # then we have an offset to apply
-            start_building += datetime.timedelta(minutes=self.conf["schedule_offset"])
+            start_building += datetime.timedelta(minutes=self.conf.get("schedule_offset", 0))
 
         match how_much:
             case "day":

@@ -196,6 +196,7 @@ class StationPlayer:
                 force_window=True,
                 script_opts="osc-idlescreen=no",
                 hr_seek="yes",
+                image_display_duration="inf",
             )
 
         self.station_config = station_config
@@ -795,7 +796,13 @@ class StationPlayer:
         self.mpv.aid = "auto"  # FS42 local: no stub audio track (#aid) carried over
         self._close_now_playing()
         self.mpv.vf = ""
-        self.mpv.af = ""
+        if self._active_afx:
+            self.mpv.command("af", "remove", self._active_afx)
+            self._active_afx = None
+        try:  # FS42 local: no stream leveling here (upstream no longer clears all of af)
+            self.mpv.command("af", "remove", "@fs42level")
+        except Exception:
+            pass
         self.mpv.command("playlist-clear")
         self.mpv.command("loadfile", file_path, "replace")
         self.mpv.loop_playlist = "inf"

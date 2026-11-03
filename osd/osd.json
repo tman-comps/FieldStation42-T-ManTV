@@ -1,4 +1,0 @@
-[ { "type": "LogoDisplay", "halign": "RIGHT", "valign": "TOP",
-    "x_margin": 0.22, "y_margin": 0.13,
-    "display_time": 6.0, "always_show": false,
-    "default_logo": null, "default_show_logo": false } ]
