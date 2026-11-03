@@ -1,0 +1,7 @@
+#!/bin/bash
+# bring back taskbar + desktop for this session (e.g. while using VNC)
+export DISPLAY=:0
+P=$(pgrep -a lxsession | sed -n 's/.*-s \([^ ]*\).*/\1/p'); P=${P:-LXDE-pi}
+if command -v lxpanel-pi >/dev/null; then setsid lxpanel-pi --profile "$P" >/dev/null 2>&1 & else setsid lxpanel --profile "$P" >/dev/null 2>&1 & fi
+setsid pcmanfm --desktop --profile "$P" >/dev/null 2>&1 &
+echo "Desktop shown until next reboot"

@@ -1,0 +1,5 @@
+#!/bin/bash
+rm -f "$HOME/FieldStation42/fs42_local/STOP"
+setsid nohup "$HOME/FieldStation42/fs42_local/start_fs42.sh" >/dev/null 2>&1 < /dev/null &
+setsid nohup "$HOME/.local/bin/fs42-tune-back" >/dev/null 2>&1 < /dev/null &
+echo "FieldStation42 starting, back to channel $(cat "$HOME/.local/state/fs42_last_channel" 2>/dev/null || echo default) (log: fs42-log)"

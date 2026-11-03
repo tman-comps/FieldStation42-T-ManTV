@@ -1,0 +1,3 @@
+#!/bin/bash
+pkill -f "local/bin/fs42-osd$"; pkill -f "fs42/osd/main.py"; pkill -x xcompmgr
+echo "FS42 OSD stopped (fs42-osd to start it again)"

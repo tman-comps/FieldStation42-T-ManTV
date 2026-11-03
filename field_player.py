@@ -150,6 +150,7 @@ def main_loop(transition_fn, shutdown_queue=None, api_proc=None, schedule_lock=N
         channel_index = 0
 
     player = StationPlayer(manager.stations[channel_index], input_check)
+    player._fs42_osd_pending = True
     if schedule_lock:
         player.schedule_lock = schedule_lock
     stand_by = StationManager().server_conf.get("standby_image", "runtime/standby.png")
@@ -217,6 +218,17 @@ def main_loop(transition_fn, shutdown_queue=None, api_proc=None, schedule_lock=N
 
         # reset skip
         skip_play = False
+
+        while (player_state.status == PlayerState.CHANNEL_CHANGE and isinstance(player_state.payload, str)
+               and '"ondemand"' in player_state.payload):  # FS42 local: On Demand menu plays a file here
+            try:
+                _od = json.loads(player_state.payload)
+            except ValueError:
+                break
+            if _od.get("command") != "ondemand":
+                break
+            player_state = player.play_ondemand(_od.get("path", ""), float(_od.get("start") or 0),
+                                                _od.get("title") or "On Demand")
 
         if player_state.status == PlayerState.CHANNEL_CHANGE:
             stuck_timer = 0
@@ -286,6 +298,11 @@ def main_loop(transition_fn, shutdown_queue=None, api_proc=None, schedule_lock=N
                 s["channel_index"] = channel_index
             channel_conf = station_cache[channel_index]
             player.station_config = channel_conf
+            player._fs42_osd_pending = True
+            try:  # _fs42_osd_now: show the number right away, before the new channel loads
+                player.mpv.command("show-text", f"{channel_conf['channel_number']}", 5000)
+            except Exception:
+                pass
 
             # long_change_effect(player, reception)
             transition_fn(player, reception)

@@ -185,3 +185,12 @@ hls/
 web_urls/
 
 .fuse_hidden*
+
+# T-ManTV: per-Pi settings (copy fs42_local/boot.conf.example)
+fs42_local/boot.conf
+fs42_local/logs/
+fs42_local/*.lock
+fs42_local/STOP
+fs42/fs42_server/static/ondemand/catalog.json*
+*.bak-*
+node_modules/

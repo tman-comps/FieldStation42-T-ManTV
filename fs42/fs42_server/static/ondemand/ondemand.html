@@ -1,0 +1,269 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>T-ManTV On Demand</title>
+<!-- T-ManTV On Demand menu (step 2, 2026-11-01). Built from ondemand-ws-mockup.html, WeatherStar skin only.
+     Lives in FS42's static dir (static/ondemand/), shown full screen by fs42_local/guide_overlay.py.
+     Data: catalog.json next to this page (ondemand_export.py --paths, cron after the 4:40am refresh).
+     The overlay talks to the page with runJavaScript (odOpened, odSetPositions, odKey);
+     the page answers with console messages "ODPLAY {json}" and "ODCLOSE". -->
+<style>
+@font-face { font-family: "Star4000"; src: url("../iguide/fonts/Star4000.woff"); }
+@font-face { font-family: "Star4000 Large"; src: url("../iguide/fonts/Star4000-Large.woff"); }
+@font-face { font-family: "Star4000 Extended"; src: url("../iguide/fonts/Star4000-Extended.woff"); }
+
+:root {
+  color-scheme: dark;
+  --page: #0b0c10;
+  --note: #b4b8c6;
+  --btn: #1d2030;
+  --btn-edge: #343a55;
+  --gold: #f0b429;
+
+  /* modern skin (base values) */
+  --bg: radial-gradient(120% 90% at 70% 0%, #262a36 0%, #14161c 60%, #0d0e12 100%);
+  --bar: rgba(10, 11, 15, .85);
+  --bar-fg: #e9e9ee;
+  --fg: #f2f2f5;
+  --dim: #a3a7b5;
+  --faint: #6c7182;
+  --accent: #f0b429;
+  --panel: rgba(255, 255, 255, .06);
+  --panel-edge: rgba(255, 255, 255, .10);
+  --focus-ring: 0 0 0 3px #f0b429, 0 6px 18px rgba(0, 0, 0, .6);
+  --sel-bg: rgba(255, 255, 255, .08);
+  --sel-fg: #f2f2f5;
+  --tab-on: #f0b429;
+  --tab-on-fg: #14161c;
+  --row-title: #e9e9ee;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Barlow", "Segoe UI", sans-serif;
+  --tile-border: transparent;
+  --radius: 5px;
+  --shadow: none;
+}
+/* WeatherStar: colors, fonts and outlines from the guide's iguide/themes/ws.css */
+.ws {
+  --bg: linear-gradient(180deg, #2a1470 0%, #0b1250 55%, #101e78 100%);
+  --bar: #1c0a57;
+  --bar-fg: #ffffff;
+  --fg: #ffffff;
+  --dim: #d6dcff;
+  --faint: #a8a8ff;
+  --accent: #ffff00;
+  --panel: #21285a;
+  --panel-edge: #3a2c8c;
+  --focus-ring: 0 0 0 2px #ffff00;
+  --sel-bg: linear-gradient(#bc5904 0%, #974717 45%, #4e243c 100%);
+  --sel-fg: #ffff00;
+  --tab-on: linear-gradient(#bc5904 0%, #974717 45%, #4e243c 100%);
+  --tab-on-fg: #ffff00;
+  --row-title: #ffff00;
+  --display: "Star4000 Large", "Courier New", monospace;
+  --body: "Star4000", "Courier New", monospace;
+  --tile-border: #3a2c8c;
+  --radius: 0;
+  --shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+}
+
+html, body { margin: 0; background: #000; color: #fff; overflow: hidden; }
+#stage { width: 720px; height: 480px; background: #000; position: absolute; left: 0; top: 0;
+  display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#frame {
+  width: 88%; height: 92%; position: relative; overflow: hidden; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--fg); font-family: var(--body); text-shadow: var(--shadow);
+}
+
+/* top bar */
+#bar {
+  flex: 0 0 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px;
+  background: var(--bar); color: var(--bar-fg); text-shadow: none;
+}
+.ws #bar { flex-basis: 28px; border-bottom: 2px solid #141414; text-shadow: var(--shadow); }
+.logo { font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: .5px; white-space: nowrap; }
+.logo span { color: var(--accent); }
+.ws .logo { font-family: "Star4000 Extended", "Courier New", monospace; color: #ffff00; font-size: 16px; letter-spacing: 1px; }
+.ws .logo span { color: #ffff00; }
+.ws .logo small { font-family: "Star4000", monospace; color: #fff; font-size: 13px; margin-left: 4px; }
+#tabs { display: flex; gap: 4px; flex: 1; }
+.tab {
+  font-family: var(--display); font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: .6px;
+  padding: 4px 9px 3px; border-radius: 3px; cursor: pointer; white-space: nowrap;
+}
+.tab.on { background: var(--tab-on); color: var(--tab-on-fg); }
+.ws .tab { font-size: 13px; letter-spacing: 0; color: #fff; padding: 3px 7px 1px; border-radius: 0; }
+.ws .tab.on { border: 1px solid #ffff00; }
+.tab.f { box-shadow: var(--focus-ring); }
+#clock { font-family: var(--display); font-weight: 600; font-size: 15px; white-space: nowrap; }
+
+#view { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+#status { display: none; }
+.ws #status {
+  flex: 0 0 20px; display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 0 10px; margin-top: 3px; background: #233270; border-top: 2px solid #141414;
+  font-family: "Star4000 Large", monospace; font-size: 12px; white-space: nowrap;
+}
+.ws #status b { color: #ffff00; font-weight: normal; }
+
+/* tiles */
+.poster {
+  flex: 0 0 auto; width: 74px; height: 108px; border-radius: var(--radius); position: relative; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-end; padding: 6px 5px; box-sizing: border-box;
+  border: 2px solid var(--tile-border); cursor: pointer; transition: transform .12s;
+}
+.poster .pt {
+  font-family: var(--display); font-weight: 700; font-size: 11.5px; line-height: 1.05; text-transform: uppercase;
+  color: #fff; text-shadow: 1px 1px 0 rgba(0, 0, 0, .7); overflow-wrap: break-word;
+}
+.poster .pk { font-family: var(--body); font-size: 9px; color: rgba(255, 255, 255, .8); margin-top: 3px; text-transform: uppercase; letter-spacing: .5px; }
+.poster::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .14) 0%, rgba(255, 255, 255, 0) 35%, rgba(0, 0, 0, .45) 100%);
+}
+.poster > * { position: relative; }
+.f.poster, .f.wide { box-shadow: var(--focus-ring); transform: scale(1.06); z-index: 2; }
+.wide {
+  flex: 0 0 auto; width: 138px; height: 78px; border-radius: var(--radius); position: relative; overflow: hidden;
+  border: 2px solid var(--tile-border); box-sizing: border-box; cursor: pointer; padding: 5px 6px;
+  display: flex; flex-direction: column; justify-content: flex-end; transition: transform .12s;
+}
+.wide::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, 0) 20%, rgba(0, 0, 0, .7) 100%); }
+.wide > * { position: relative; }
+.wide .ws-k { font-family: var(--display); font-weight: 700; font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: .4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wide .wt { font-family: var(--display); font-weight: 600; font-size: 13px; line-height: 1.1; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prog { height: 3px; background: rgba(255, 255, 255, .25); margin-top: 4px; }
+.prog i { display: block; height: 100%; background: var(--accent); }
+/* WeatherStar tiles: flat panels, no gloss, show color only as a stripe; focused tile goes gold */
+.ws .poster, .ws .wide { background: #21285a !important; box-shadow: inset 0 0 0 1px #141414; }
+.ws .poster::before, .ws .wide::before { background: none; }
+.ws .poster .stripe, .ws .wide .stripe { position: absolute; left: 0; right: 0; top: 0; height: 22px; opacity: .9; }
+.ws .poster .pt { font-family: "Star4000 Large", monospace; font-weight: normal; font-size: 11px; line-height: 1.2; text-shadow: var(--shadow); }
+.ws .poster .pk, .ws .wide .ws-k { font-family: "Star4000", monospace; font-size: 10px; color: #a8a8ff; letter-spacing: 0; }
+.ws .wide .ws-k { color: #ffff00; }
+.ws .wide .wt { font-family: "Star4000", monospace; font-size: 14px; font-weight: normal; }
+.ws .f.poster, .ws .f.wide { background: linear-gradient(#bc5904 0%, #974717 45%, #4e243c 100%) !important; box-shadow: 0 0 0 2px #ffff00; border-color: #141414; transform: none; }
+.ws .f.poster .pt, .ws .f.wide .wt { color: #ffff00; }
+.ws .prog { background: #001040; border: 1px solid #141414; height: 5px; }
+.ws .prog i { background: linear-gradient(#ffff00, #d9b400); }
+.stripe { display: none; }
+.ws .stripe { display: block; }
+
+/* home */
+.hero { flex: 0 0 132px; position: relative; padding: 12px 14px 0; box-sizing: border-box; overflow: hidden; }
+.hero .bd { position: absolute; inset: 0; opacity: .5; }
+.hero .bd::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .85) 0%, rgba(0, 0, 0, .4) 55%, rgba(0, 0, 0, 0) 100%); }
+.hero > :not(.bd) { position: relative; }
+.ws .hero { flex-basis: 118px; margin: 6px 8px 2px; padding: 6px 10px; background: #21285a; border: 2px solid #3a2c8c; box-shadow: inset 0 0 0 1px #141414, 0 0 0 1px #141414; }
+.ws .hero .bd { display: none; }
+.kicker { font-family: var(--display); font-weight: 700; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+.htitle { font-family: var(--display); font-weight: 700; font-size: 28px; line-height: 1.05; margin-top: 2px; text-transform: uppercase; max-width: 460px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meta { font-family: var(--body); font-size: 12px; color: var(--dim); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desc { font-family: var(--body); font-size: 13px; line-height: 1.3; color: var(--fg); margin-top: 5px; max-width: 460px; max-height: 34px; overflow: hidden; }
+.ws .kicker { font-family: "Star4000 Extended", monospace; font-weight: normal; font-size: 14px; letter-spacing: 0; color: #ffff00; }
+.ws .htitle { font-family: "Star4000 Large", monospace; font-weight: normal; font-size: 20px; line-height: 24px; padding-top: 2px; }
+.ws .meta { font-size: 13px; color: #a8a8ff; }
+.ws .desc { font-size: 14px; line-height: 1.15; color: #d6dcff; }
+.vscroll { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.shelf { padding: 4px 0 6px; }
+.shelf h3 {
+  margin: 0 0 5px 14px; font-family: var(--display); font-weight: 700; font-size: 13px;
+  text-transform: uppercase; letter-spacing: .8px; color: var(--row-title);
+}
+.shelf h3 small { color: var(--faint); font-weight: 600; margin-left: 6px; }
+.ws .shelf h3 { font-weight: normal; letter-spacing: 0; font-size: 14px; }
+.ws .shelf h3 small { font-family: "Star4000", monospace; font-size: 12px; }
+.hscroll { overflow: hidden; position: relative; padding: 6px 0; }
+.track { display: flex; gap: 9px; padding: 0 14px; width: max-content; }
+
+/* grid pages */
+.chips { display: flex; gap: 6px; padding: 9px 14px 2px; flex-wrap: nowrap; }
+.chip {
+  font-family: var(--display); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .5px;
+  padding: 4px 10px 3px; border-radius: 20px; background: var(--panel); border: 1px solid var(--panel-edge); cursor: pointer; white-space: nowrap;
+}
+.classic .chip, .ws .chip { border-radius: 3px; }
+.ws .chip { border-radius: 0; font-weight: normal; letter-spacing: 0; padding: 3px 8px 1px; border: 2px solid #3a2c8c; }
+.chip.on { background: var(--tab-on); color: var(--tab-on-fg); text-shadow: none; }
+.ws .chip.on { text-shadow: var(--shadow); }
+.chip.f { box-shadow: var(--focus-ring); }
+.gridhead { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 14px 0; }
+.gridhead .meta { margin: 0; }
+
+/* detail pages */
+.detail { display: flex; gap: 14px; padding: 12px 14px 6px; flex: 0 0 auto; }
+.detail .poster { width: 96px; height: 140px; cursor: default; }
+.detail .poster .pt { font-size: 15px; }
+.ws .detail { margin: 6px 8px 4px; padding: 6px 8px; background: #21285a; border: 2px solid #3a2c8c; box-shadow: inset 0 0 0 1px #141414, 0 0 0 1px #141414; }
+.ws .detail .poster { height: 128px; width: 88px; }
+.ws .detail .poster .pt { font-size: 12px; }
+.detail .info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.detail .htitle { white-space: normal; font-size: 26px; max-height: 56px; overflow: hidden; }
+.ws .detail .htitle { font-size: 19px; max-height: 48px; }
+.detail .desc { max-height: 51px; }
+.aired { font-family: var(--body); font-size: 12px; color: var(--accent); margin-top: 5px; }
+.btns { display: flex; gap: 7px; margin-top: auto; padding-top: 8px; }
+.btn {
+  font-family: var(--display); font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: .5px;
+  padding: 6px 12px 5px; border-radius: 3px; background: var(--panel); border: 1px solid var(--panel-edge);
+  cursor: pointer; white-space: nowrap;
+}
+.btn.main { background: var(--tab-on); color: var(--tab-on-fg); text-shadow: none; border-color: transparent; }
+.ws .btn { font-weight: normal; letter-spacing: 0; border-radius: 0; background: #001040; border: 2px solid #3a2c8c; padding: 4px 9px 2px; font-size: 13px; }
+.ws .btn.main { background: linear-gradient(#bc5904 0%, #974717 45%, #4e243c 100%); color: #ffff00; text-shadow: var(--shadow); border-color: #141414; }
+.btn.f { box-shadow: var(--focus-ring); }
+.seasons { display: flex; gap: 4px; padding: 2px 14px 4px; border-bottom: 1px solid var(--panel-edge); overflow: hidden; }
+.season {
+  font-family: var(--display); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .5px;
+  padding: 4px 9px 3px; border-radius: 3px 3px 0 0; color: var(--dim); cursor: pointer; white-space: nowrap;
+}
+.season.on { color: var(--fg); background: var(--panel); }
+.season.on::after { content: ""; display: block; height: 2px; margin-top: 2px; background: var(--accent); }
+.ws .seasons { background: #200057; border: 0; margin: 0 8px; padding: 2px 6px 0; border-top: 2px solid #141414; }
+.ws .season { font-weight: normal; letter-spacing: 0; color: #a8a8ff; border-radius: 0; padding: 3px 7px 1px; }
+.ws .season.on { color: #ffff00; background: transparent; }
+.ws .season.on::after { background: #ffff00; height: 2px; margin-top: 0; }
+.season.f { box-shadow: var(--focus-ring); }
+.ep {
+  display: flex; align-items: center; gap: 10px; height: 31px; padding: 0 14px; box-sizing: border-box;
+  border-bottom: 1px solid rgba(255, 255, 255, .06); cursor: pointer; position: relative;
+}
+.ep .en { font-family: var(--display); font-weight: 700; font-size: 14px; color: var(--faint); flex: 0 0 30px; }
+.ep .et { font-family: var(--body); font-weight: 600; font-size: 14px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep .em { font-family: var(--body); font-size: 12px; color: var(--dim); white-space: nowrap; }
+.ws .ep .em { font-family: "Star4000", monospace; font-size: 13px; color: #a8a8ff; }
+.ws .ep.f .em { color: #ffffff; }
+.ep .seen { font-size: 11px; color: var(--accent); white-space: nowrap; font-family: var(--display); font-weight: 700; letter-spacing: .4px; }
+.ep .prog { position: absolute; left: 54px; right: 14px; bottom: 3px; margin: 0; height: 2px; }
+.ep.f { background: var(--sel-bg); color: var(--sel-fg); box-shadow: inset 3px 0 0 var(--accent); }
+.classic .ep.f, .ws .ep.f { box-shadow: none; text-shadow: none; }
+.ws .vscroll.eps { margin: 0 8px; background: repeating-linear-gradient(0deg, #001040 0px, #102080 80px, #102080 120px, #001040 200px); border: 2px solid #141414; border-top: 0; }
+.ws .ep { border-bottom: 1px solid #000a30; height: 30px; }
+.ws .ep .en { font-family: "Star4000 Large", monospace; font-weight: normal; color: #ffff00; }
+.ws .ep .et { font-family: "Star4000", monospace; font-weight: normal; font-size: 15px; }
+.ws .ep.f { text-shadow: var(--shadow); outline: 2px solid #ffff00; outline-offset: -2px; }
+
+/* play overlay */
+#play {
+  position: absolute; inset: 0; background: #000; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; text-align: center;
+}
+#play[hidden] { display: none; }
+#play .kicker { font-size: 13px; }
+#play .htitle { font-size: 24px; max-width: 520px; white-space: normal; }
+
+.ep .seen.done { color: #a8a8ff; }
+</style>
+
+<div id="stage">
+  <div id="frame" class="ws">
+    <div id="bar">
+      <div class="logo">T-Man<span>TV</span> <small>On Demand</small></div>
+      <div id="tabs"></div>
+      <div id="clock"></div>
+    </div>
+    <div id="view"></div>
+    <div id="status"><span><b>ARROWS</b> MOVE &nbsp;<b>OK</b> SELECT &nbsp;<b>BACK</b> RETURN</span><b id="st-r"></b></div>
+    <div id="play" hidden></div>
+  </div>
+</div>
+
+<script src="ondemand.js"></script>

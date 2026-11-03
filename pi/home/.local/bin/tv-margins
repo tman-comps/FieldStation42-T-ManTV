@@ -1,0 +1,10 @@
+#!/bin/sh
+# Hardware edge shrink on the composite output (px). Tuned 2026-11-02 for the Philips Magnavox PR1388.
+# Usage: tv-margins            -> apply saved values
+#        tv-margins L R T B    -> apply and save new values
+CONF="$HOME/.config/tv-margins.conf"
+[ $# -eq 4 ] && echo "L=$1 R=$2 T=$3 B=$4" > "$CONF"
+[ -f "$CONF" ] || echo "L=10 R=4 T=0 B=0" > "$CONF"
+. "$CONF"
+export DISPLAY=${DISPLAY:-:0}
+xrandr --output Composite-1 --set "left margin" "$L" --set "right margin" "$R" --set "top margin" "$T" --set "bottom margin" "$B"

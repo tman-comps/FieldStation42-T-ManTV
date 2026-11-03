@@ -1,0 +1,6 @@
+10 4 * * * cd $HOME/FieldStation42 && . $HOME/FieldStation42/fs42_local/boot.conf && flock $HOME/FieldStation42/fs42_local/.schedule.lock $HOME/FieldStation42/env/bin/python3 $HOME/FieldStation42/fs42_local/keep_schedule.py $SCHEDULE_DAYS >> $HOME/FieldStation42/fs42_local/logs/schedule.log 2>&1
+40 4 * * * cd $HOME/FieldStation42 && flock -n fs42_local/.archive_urls.lock env/bin/python3 fs42_local/archive_urls.py >> fs42_local/logs/archive_urls.log 2>&1
+# FS42 Simpsons MKV index proxy (2026-11-01, docs channels/12-simpsons.md): start at boot, restart within a minute if it stops
+@reboot flock -n $HOME/.cache/fs42-mkv-proxy.lock $HOME/.local/bin/fs42-mkv-proxy serve 8742 >> $HOME/.cache/fs42-mkv-proxy.log 2>&1
+* * * * * flock -n $HOME/.cache/fs42-mkv-proxy.lock $HOME/.local/bin/fs42-mkv-proxy serve 8742 >> $HOME/.cache/fs42-mkv-proxy.log 2>&1
+50 4 * * * cd $HOME/FieldStation42 && env/bin/python3 $HOME/ondemand_export.py fs42/fs42_server/static/ondemand/catalog.json.tmp --paths >> fs42_local/logs/ondemand_export.log 2>&1 && mv fs42/fs42_server/static/ondemand/catalog.json.tmp fs42/fs42_server/static/ondemand/catalog.json

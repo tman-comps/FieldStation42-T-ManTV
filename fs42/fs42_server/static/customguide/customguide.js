@@ -364,21 +364,37 @@ function updateGridHeader(slots) {
   }
 }
 
+const SHORT_BLOCK_MS = 8 * 60 * 1000; // blocks shorter than this (e.g. music video clips) are "clip style"
+
 function createGridProgramBlock(block, guideStartMs, guideEndMs, totalMs, now) {
   const bStart = new Date(block.start_time);
   const bEnd = new Date(block.end_time);
 
   if (bEnd.getTime() <= guideStartMs || bStart.getTime() >= guideEndMs) return null;
+  if (bEnd.getTime() <= now.getTime()) return null; // T-ManTV hide ended
 
-  const visStart = Math.max(bStart.getTime(), guideStartMs);
-  const visEnd = Math.min(bEnd.getTime(), guideEndMs);
+  const isCurrent = bStart <= now && bEnd > now;
+  const isShort = (bEnd.getTime() - bStart.getTime()) < SHORT_BLOCK_MS;
 
-  const leftPct = (visStart - guideStartMs) / totalMs * 100;
-  const widthPct = (visEnd - visStart) / totalMs * 100;
+  // Clip-style blocks (many short items per slot, like a music video channel):
+  // only ever render the one currently playing, stretched across the full
+  // visible width, instead of a title per tiny sliver for every clip.
+  if (isShort && !isCurrent) return null;
+
+  let leftPct, widthPct;
+  if (isShort && isCurrent) {
+    leftPct = 0;
+    widthPct = 100;
+  } else {
+    const visStart = (bStart <= now) ? guideStartMs : Math.max(bStart.getTime(), guideStartMs); // T-ManTV current fills left
+    const visEnd = Math.min(bEnd.getTime(), guideEndMs);
+    leftPct = (visStart - guideStartMs) / totalMs * 100;
+    widthPct = (visEnd - visStart) / totalMs * 100;
+  }
 
   const el = document.createElement('div');
   el.className = 'grid-program-block';
-  if (bStart <= now && bEnd > now) el.classList.add('current');
+  if (isCurrent) el.classList.add('current');
 
   el.style.left = leftPct + '%';
   el.style.width = `calc(${widthPct}% - 2px)`;

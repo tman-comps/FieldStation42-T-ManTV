@@ -1,0 +1,8 @@
+#!/bin/bash
+# Restart fs42-mkv-proxy (after installing a new version). A script file, so pkill cannot match the ssh line.
+pkill -f "^python3 $HOME/.local/bin/fs42-mkv-proxy serve"
+pkill -f "^/usr/bin/python3 $HOME/.local/bin/fs42-mkv-proxy serve"
+sleep 1
+setsid nohup flock -n $HOME/.cache/fs42-mkv-proxy.lock $HOME/.local/bin/fs42-mkv-proxy serve 8742 >> $HOME/.cache/fs42-mkv-proxy.log 2>&1 < /dev/null &
+sleep 2
+ss -ltn | grep -q 127.0.0.1:8742 && echo "proxy up" || echo "proxy NOT up"

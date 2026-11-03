@@ -1,0 +1,3 @@
+#!/bin/bash
+# full restart: re-reads boot.conf, re-applies patches, checks schedules
+"$HOME/.local/bin/fs42-stop" >/dev/null; sleep 2; "$HOME/.local/bin/fs42-start"

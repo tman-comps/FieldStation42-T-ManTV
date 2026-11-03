@@ -425,7 +425,7 @@ def main():
         delete_schedules(_rebuild_list)
         rebuild_catalogs(_rebuild_list)
 
-        if FF_USE_FLUID_FILE_CACHE:
+        if FF_USE_FLUID_FILE_CACHE and not args.rebuild_catalog:  # FS42 local: named -r skips the trim
             try:
                 FluidBuilder().trim_file_cache(execution_start_time)
                 success_messages.append("I trimmed the fluid cache")

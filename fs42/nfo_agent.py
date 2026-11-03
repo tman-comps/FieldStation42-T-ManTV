@@ -250,7 +250,7 @@ class NFOAgent:
         return cfg
 
     # Overlay-eligible metadata types — only these render an on-screen overlay.
-    OVERLAY_TYPES = ("music", "plaintext")
+    OVERLAY_TYPES = ("plaintext",)  # "music" disabled - was freezing playback (re-add "music" to restore)
 
     @staticmethod
     def parse_nfo_string(content):
@@ -290,6 +290,7 @@ class NFOAgent:
                 "album": get("album"),
                 "year": get("year") or get("premiered")[:4],
                 "genre": get("genre"),
+                "plot": get("plot"),
             }
         elif tag == "movie":
             meta = {
@@ -400,6 +401,8 @@ class NFOAgent:
 
     @staticmethod
     def show_overlay(nfo_data, play_duration=None, show_seconds=DEFAULT_SHOW_SECONDS):
+
+        return None  # OSD temporarily disabled - was freezing playback (delete this line to restore)
 
         if nfo_data is None:
             return None

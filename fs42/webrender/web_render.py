@@ -151,6 +151,11 @@ class WebRenderApp(QApplication):
             # Handle queue messages similar to GuideApp
             if hasattr(msg, 'hide_window') or msg == "hide_window":
                 print("WebRender window is shutting down now.")
+                try:  # FS42 local: silence this page right away so its audio can't linger
+                    self.window.browser.page().setAudioMuted(True)
+                    self.window.browser.page().runJavaScript("document.querySelectorAll('video,audio').forEach(function(m){try{m.pause();m.removeAttribute('src');m.load();}catch(e){}});")
+                except Exception:
+                    pass
                 print("Stopping timer...")
                 self.timer.stop()
                 if hasattr(self, 'refresh_timer'):
@@ -164,7 +169,7 @@ class WebRenderApp(QApplication):
             # Handle key injection commands
             if isinstance(msg, str) and msg.startswith("key:"):
                 key_name = msg[4:]
-                if key_name not in {"PageUp", "PageDown", "Enter"}:
+                if key_name not in {"PageUp", "PageDown", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home"}:  # FS42 local: i-Guide keys
                     print(f"WebRender: rejected disallowed key '{key_name}'")
                     return
                 js = f"""

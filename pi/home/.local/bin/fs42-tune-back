@@ -1,0 +1,12 @@
+#!/bin/bash
+# save: remember the current channel. (no arg): wait for the player, then tune to the saved one. (2026-11-01)
+f="$HOME/.local/state/fs42_last_channel"; api=http://127.0.0.1:4242/player
+if [ "$1" = save ]; then
+  mkdir -p "$(dirname "$f")"
+  ch=$(curl -s -m 3 $api/status | grep -o "\"channel_number\":[0-9]*" | cut -d: -f2)
+  [ -n "$ch" ] && echo "$ch" > "$f"; echo "${ch:-?}"; exit 0
+fi
+[ -s "$f" ] || exit 0
+ch=$(cat "$f"); sleep 5
+for i in $(seq 90); do curl -s -m 2 $api/status | grep -q "\"status\":\"playing\"" && break; sleep 1; done
+sleep 2; curl -s -m 3 $api/channels/$ch >/dev/null

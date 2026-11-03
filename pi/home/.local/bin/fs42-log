@@ -1,0 +1,4 @@
+#!/bin/bash
+L="$HOME/FieldStation42/fs42_local/logs"
+tail -n 5 "$L/launcher.log" "$L/schedule.log" 2>/dev/null; echo "--- live player log (Ctrl+C to exit) ---"
+tail -n 20 -f "$L/field_player.log"

@@ -1,0 +1,9 @@
+# FieldStation42 boot settings (edit, then run: fs42-restart-all)
+NAS_MOUNT="/mnt/nas"
+NAS_WAIT=180                       # seconds to wait for the NAS before starting anyway
+SPLASH="runtime/tmantv_standby.png"       # shown while waiting
+XRANDR_OUTPUT="Composite-1"
+XRANDR_TRANSFORM=""
+HIDE_DESKTOP=1                     # 1 = no taskbar/desktop icons (fs42-desktop brings them back)
+SCHEDULE_DAYS=7                    # when a channel drops under 1 day left, refill it to this many days
+TV_IR_HOOK=""                      # optional: webhook that sends TV power/volume IR, e.g. http://<home-assistant>:8123/api/webhook/<id>

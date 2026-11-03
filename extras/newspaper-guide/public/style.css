@@ -1,0 +1,488 @@
+/* Container: grid-wrap (position for absolute children; prevent accidental back/forward swipe) */
+#grid-wrap {
+  position: relative;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;  
+}
+/* Stylesheet */
+
+:root {
+  --header-height: 5rem;
+  --channel-header-height: 3rem;
+  --chan-width: 12.5rem;
+  --compact-row-height: 0.4rem;
+  --compact-col-scale: 0.8;
+
+  /* Fonts */
+  --font-family-base: 'Roboto Condensed', sans-serif;
+  --font-family-date: 'Roboto', sans-serif;
+  --font-size-base: 1rem;
+  --font-size-header: 1.5rem;
+  --font-size-channel-header: 1.1rem;
+  --font-size-program: 0.8rem;
+  --font-size-summary: 0.7rem;
+  --font-size-day: 3rem;
+  --font-size-date: 1.5rem;
+
+  /* Colors */
+  --color-white: #fff;
+  --color-off-white: #eeedeb;
+  --color-grey: #bababa;
+  --color-black: #000;
+  --color-text: #000;
+  --color-header-bg: #fff;
+  --color-header-fg: #fff;
+  --color-program-bg: #fff;
+  --color-movie-bg: rgb(255, 230, 230);
+  --color-offair-bg: rgba(240,240,240,1.0);
+  --color-border: #000;
+
+  /* Textures */
+  --texture-paper: url('/textures/newsprint.png');
+  --texture-halftone: url('/textures/halftone.png');
+  --texture-newspaper: url('/textures/newspaper.png');
+  --texture-edge: url('/textures/paper-edge.png');
+  --highlighter-url: none;
+  --registration-url: url('/textures/registration-marks.png');
+}
+
+html {
+    filter: blur(0.2px);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  position: relative;
+  z-index: 0;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: absolute;
+  top:    0;
+  left:   0;
+  /* Full-page width for halftone/paper backgrounds */
+  width: max(100%, calc(4em + var(--chan-count) * var(--chan-width)));
+  height: 100%;
+  pointer-events: none;
+}
+
+body::before {
+  /* 1st layer: paper texture */
+  background: var(--texture-paper) repeat top left;
+  mix-blend-mode: multiply;
+  opacity: 1;
+  z-index: 2;
+}
+
+body::after {
+  /* 2nd layer: halftone dots */
+  background: var(--texture-halftone) repeat top left;
+  background-size: 75px 75px;
+  mix-blend-mode: overlay;
+  opacity: 0.75;
+  z-index: 3;
+}
+
+/* Section: date bar */
+.header {
+  display: flex;
+  align-items: baseline;
+  background-color: var(--color-header-bg);
+  color: var(--color-header-fg);
+  padding: 0.5rem 1rem;
+  font-size: var(--font-size-header);
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  width: 100%;
+  height: var(--header-height);
+  box-sizing: border-box;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+}
+
+/* Section: header overlays */
+.header::before,
+.header::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.header::before {
+  background-image: var(--texture-paper), var(--texture-edge);
+  background-repeat: repeat top left, no-repeat;
+  background-size: 1024px 1024px, 100% 100%;
+  background-position: top left, top left;
+  background-blend-mode: multiply, screen;
+  opacity: 0.95;
+  z-index: 21;
+  /* Workaround for iOS Safari multi-background optimization */
+  background-attachment: scroll;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  will-change: background-image, opacity;
+}
+
+.header::after {
+  background: var(--texture-halftone);
+  mix-blend-mode: overlay;
+  background-repeat: repeat top left;
+  background-size: 75px 75px;
+  background-position: top left;
+  opacity: 0.75;
+  z-index: 23;
+}
+
+.header > * {
+  position: relative;
+  z-index: 23;
+}
+
+/* Section: header date/day */
+.hdr-day {
+  font-family: var(--font-family-date);
+  font-size: var(--font-size-day);
+  color: var(--color-off-white);
+  padding-top: 0.7rem;
+  padding-left: 0.7rem;
+  position: relative;
+  z-index: 22;
+}
+.hdr-date {
+  font-family: var(--font-family-date);
+  font-size: var(--font-size-date);
+  padding-left: 10px;
+  color: var(--color-grey);
+  padding-top: 0.7rem;
+  position: relative;
+  z-index: 22;
+}
+
+/* Section: guide grid */
+.guide-container {
+  display: grid;
+  grid-template-columns: 4em repeat(var(--chan-count), minmax(var(--chan-width), 1fr));
+  grid-template-rows: var(--channel-header-height) repeat(290, 1rem);
+  margin: var(--header-height) auto 10px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  position: relative;
+  z-index: 0;
+}
+
+/* Overlay: newspaper texture (scrolls with grid) */
+.guide-container::after {
+  content: "";
+  position: absolute;
+  top:    0;
+  left:   0;
+  width: max(100%, calc(4em + var(--chan-count) * var(--chan-width)));
+  bottom: 0;
+  background: var(--texture-newspaper) repeat top left;
+  background-size: 40% 40%;
+  mix-blend-mode: multiply;
+  opacity: 0.10;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Mask: sticky first column */
+.guide-container::before {
+  content: "";
+  position: absolute;
+  bottom:   0;
+  left:     0;
+  width:    4em;
+  height: auto;
+  position: sticky;
+  background: var(--color-white);
+  z-index: 5;
+  border-right: 1px solid var(--color-border);
+  /* T-ManTV: pin the mask to the time column; auto-placed, it covered the first channel */
+  grid-column: 1;
+  grid-row: 2 / span 288;
+}
+
+/* Section: sticky corner */
+.corner {
+  grid-row: 1;
+  grid-column: 1;
+  background: var(--color-white);
+  position: sticky;
+  height: var(--channel-header-height);
+  top: var(--header-height);
+  left: 0;
+  z-index: 20;
+}
+
+/* Section: channel headers */
+.channel-header {
+  grid-row: 1;
+  padding: 0 0.75rem;
+  background: var(--color-white);
+  color: var(--color-text);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-size: var(--font-size-channel-header);
+  font-weight: bold;
+  position: sticky;
+  top: var(--header-height);
+  z-index: 10;
+  box-sizing: border-box;
+  cursor: pointer;
+  height: var(--channel-header-height);
+}
+
+.channel-num {
+  margin-left: auto;
+  color: #909090;
+  font-weight: normal;
+}
+
+/* Section: time labels */
+.time-label {
+  grid-column: 1;
+  padding: 0.7rem 0.25rem;
+  font-size: var(--font-size-program);
+  display: flex;
+  align-items: center;
+  background: var(--color-white);
+  position: sticky;
+  top: var(--header-height);
+  left: 0;
+  z-index: 5;
+}
+
+/* Section: program blocks */
+.program {
+  padding: 0.25rem 0.65rem 0.25rem 0.5rem;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-program-bg);
+  overflow: hidden;
+  font-size: var(--font-size-program);
+  font-weight: bold;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 0;
+}
+
+.program.movie {
+  margin-right: 0.5rem;
+  position: relative;
+}
+
+.program.movie::before {
+  content: "";
+  position: absolute;
+  bottom: 0.5rem;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--color-movie-bg);
+  z-index: -1;
+}
+
+.program.offair {
+  position: relative;
+}
+.program.offair::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--color-offair-bg);
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cline x1='0' y1='8' x2='8' y2='0' stroke='darkgrey' stroke-width='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  opacity: 0.7;
+  z-index: 0;
+  margin: 0.0rem 0.5rem 0.5rem 0.0rem;
+}
+.program.offair > div {
+  position: relative;
+  z-index: 1;
+}
+
+/* Section: OFF-AIR label */
+.offair-label {
+  position: relative;
+  z-index: 2;
+  display: inline-block;
+  background: var(--color-offair-bg);
+  font-size: var(--font-size-summary);
+}
+
+/* Section: summary text */
+.summary {
+  margin-top: 0.4em;
+  font-size: var(--font-size-summary);
+  font-weight: normal;
+  color: #333;
+  position: relative;
+  z-index: 1;
+}
+
+.summary-image {
+  display: block;
+  margin: 0.5rem auto 0;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  filter: saturate(0.65) brightness(1.2) opacity(0.95) blur(0.2px);
+}
+
+/* Section: TMDB program title links */
+/* Style: remove underline and inherit color */
+ .program a {
+   text-decoration: none;
+   color: inherit;
+ }
+
+/* Highlight: current half-hour slot */
+.time-label.current {
+  font-weight: bold;
+  color: rgb(181, 41, 41);
+}
+
+/* Icons: Font Awesome stars */
+.star-wrapper {
+    padding-left: 0.5rem;
+}
+
+.star {
+  display: inline-block;
+  font-size: 0.8em;
+  line-height: 1;
+  position: relative;
+  top: -0.1em;
+}
+
+.star.filled {
+  color: rgb(181, 41, 41);
+}
+
+.star.empty {
+  color: black;
+}
+
+/* Container: year, rating, and stars */
+.movie-extras {
+  display: inline-flex;
+  align-items: baseline;
+  margin-top: 0.5rem;
+  line-height: 1;
+  font-size: var(--font-size-summary);
+  font-weight: normal;
+  font-style: italic;
+}
+
+/* Highlight: current program titles */
+.program-title-wrapper.current-prog {
+  position: relative;
+}
+.program-title {
+  display: inline-block;
+  position: relative;
+}
+.program-title-wrapper.current-prog .program-title::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -20%;
+  right: -20%;
+  bottom: 0;
+  background-image: var(--highlighter-url);
+  background-repeat: no-repeat;
+  background-size: cover;
+  transform: var(--highlighter-transform);
+  transform-origin: center;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: 0.7;
+  z-index: 0;
+}
+.program-title-wrapper.current-prog > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Decoration: registration marks */
+.registration-marks {
+  position: absolute;
+  bottom: -0.1rem;
+  right: 1rem;
+  width: 15rem;
+  height: 2.5rem;
+  background: var(--registration-url) no-repeat center center;
+  background-size: contain;
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 500;
+}
+
+/* Compact mode: overrides */
+body.compact .guide-container {
+  grid-template-rows: var(--channel-header-height) repeat(290, var(--compact-row-height));
+  grid-template-columns: 4em repeat(var(--chan-count), minmax(calc(var(--chan-width) * var(--compact-col-scale)), 1fr));
+  padding-bottom: 1.25rem;
+}
+
+body.compact .guide-container::before {
+  height: calc(289 * var(--compact-row-height));
+}
+
+body.compact .program .summary,
+body.compact .program .movie-extras,
+body.compact .program .star-wrapper,
+body.compact .summary-image {
+  display: none !important;
+}
+
+body.compact .program {
+  padding: 0.25rem 0.65rem 0.25rem 0.5rem;
+  border-bottom: 1px solid rgb(197, 195, 195);
+}
+
+/* Compact mode: hide half-hour labels */
+body.compact .time-label:nth-of-type(odd) {
+  display: none !important;
+}
+
+/* Compact mode: keep paper texture narrow */
+body.compact::before {
+  width: max(100%, calc(4em + var(--chan-count) * calc(var(--chan-width) * var(--compact-col-scale)))) !important;
+}
+/* Compact mode: let halftone span full page */
+body.compact::after {
+  width: max(100%, calc(4em + var(--chan-count) * calc(var(--chan-width) * var(--compact-col-scale)))) !important;
+}
+
+/* Compact mode: keep newspaper overlay spanning full grid */
+body.compact .guide-container::after {
+  width: max(100%, calc(4em + var(--chan-count) * calc(var(--chan-width) * var(--compact-col-scale)))) !important;
+}
+
+/* UX: prevent accidental back/forward swipe during horizontal scroll */
+#grid-wrap {
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+}
+/* Layout: fixed rem widths when channels exceed viewport */
+body.fixed-cols .guide-container {
+  grid-template-columns: 4em repeat(var(--chan-count), var(--chan-width)) !important;
+  width: calc(4em + var(--chan-count) * var(--chan-width)) !important;
+}
+
+/* Fixed columns: compact mode (scaled widths) */
+body.compact.fixed-cols .guide-container {
+  grid-template-columns: 4em repeat(var(--chan-count), calc(var(--chan-width) * var(--compact-col-scale))) !important;
+  width: calc(4em + var(--chan-count) * calc(var(--chan-width) * var(--compact-col-scale))) !important;
+}

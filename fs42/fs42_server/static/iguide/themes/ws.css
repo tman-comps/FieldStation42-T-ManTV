@@ -1,0 +1,224 @@
+/* T-ManTV WeatherStar skin for the i-Guide (?theme=00s&skin=ws).
+   Loaded instead of 00s.css: the page still builds the 00s/i-Guide layout (remote
+   navigation, live box), tmantv_skin.js adds the header, progress bar, UP NEXT,
+   start times and status bar, and this file styles all of it. Approved mockup:
+   pi/iguide-ws-mockup.html (2026-11-01). Sized for the Admiral CRT: the frame sits
+   inside the same 6% / 4% safe margins as the other guides. */
+
+@font-face { font-family: "Star4000"; src: url("../fonts/Star4000.woff"); }
+@font-face { font-family: "Star4000 Large"; src: url("../fonts/Star4000-Large.woff"); }
+@font-face { font-family: "Star4000 Extended"; src: url("../fonts/Star4000-Extended.woff"); }
+@font-face { font-family: "Star4000 Small"; src: url("../fonts/Star4000-Small.woff"); }
+
+:root {
+  --layout-mode: "grid";
+  --ws-yellow: #ffff00;
+  --ws-lavender: #a8a8ff;
+  --ws-soft: #d6dcff;
+  --ws-ink: #141414;
+  --ws-header: #1c0a57;
+  --ws-panel: #21285a;
+  --ws-panel-edge: #3a2c8c;
+  --ws-timebar: #200057;
+  --ws-status: #233270;
+  --ws-gold: linear-gradient(#bc5904 0%, #974717 45%, #4e243c 100%);
+  --ws-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+}
+
+html, body { margin: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
+body { display: flex; align-items: center; justify-content: center; }
+
+#guide-wrapper {
+  width: 88vw; height: 92vh;
+  overflow: hidden;
+  background: linear-gradient(180deg, #2a1470 0%, #0b1250 55%, #101e78 100%);
+  color: #fff; font-family: "Star4000", monospace; font-size: 16px;
+  text-shadow: var(--ws-shadow);
+}
+#guide-header, #guide-promo { display: none !important; }
+
+#guide-listings.grid-mode { width: 100%; height: 100%; display: flex; flex-direction: column; }
+
+/* header bar */
+#ws-header {
+  flex: 0 0 24px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 30px;  /* 2026-11-02: corner text in from the Magnavox rounded corners (was 10px) */ background: var(--ws-header); border-bottom: 2px solid var(--ws-ink);
+}
+#ws-header .brand { font-family: "Star4000 Extended"; font-size: 17px; color: var(--ws-yellow); letter-spacing: 1px; }
+#ws-header .brand small { font-family: "Star4000"; font-size: 13px; color: #fff; margin-left: 6px; }
+#ws-clock { font-family: "Star4000 Large"; font-size: 15px; }
+
+/* top stage: live picture left, show info right */
+#top-panel {
+  flex: 1 1 auto; height: auto; min-height: 0; display: flex; gap: 6px;
+  padding: 5px 8px 4px; background: transparent; box-sizing: border-box;
+}
+.ws-panel {
+  background: var(--ws-panel); border: 2px solid var(--ws-panel-edge);
+  box-shadow: inset 0 0 0 1px var(--ws-ink), 0 0 0 1px var(--ws-ink);
+  box-sizing: border-box;
+}
+#ws-video-frame { order: 0; flex: 0 0 auto; height: 100%; padding: 4px; }
+/* #video-panel is exactly the live box: guide_overlay.py cuts the window hole and
+   places the mpv picture using this element's rectangle. */
+#video-panel {
+  height: 100%; aspect-ratio: 4 / 3; width: auto;
+  background: #000; border: 0; overflow: hidden; justify-content: center;
+}
+#video-panel video { width: 100%; height: 100%; object-fit: contain; }
+#video-panel.video-unavailable {
+  background: linear-gradient(180deg, #2a1470 0%, #0b1250 100%);
+}
+
+#text-panel {
+  order: 1; flex: 1; min-width: 0;
+  display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch;
+  text-align: left; padding: 4px 9px; gap: 0;
+  color: #fff; background: var(--ws-panel);
+}
+.ws-chline { display: flex; justify-content: space-between; align-items: baseline; }
+.ws-net { font-family: "Star4000 Extended"; font-size: 16px; color: var(--ws-yellow); text-transform: uppercase; }
+.ws-chnum { font-family: "Star4000 Large"; font-size: 12px; color: var(--ws-lavender); margin-left: 6px; }
+.ws-label { font-family: "Star4000 Large"; font-size: 13px; color: var(--ws-yellow); margin-right: 8px; }
+#selected-program-title {
+  font-family: "Star4000 Large"; font-size: 18px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#selected-program-time { display: none; }
+#selected-program-description {
+  font-size: 14px; line-height: 1.15; color: var(--ws-soft);
+  max-height: 33px; overflow: hidden; margin-top: 1px;
+}
+.ws-vcr { display: flex; align-items: center; gap: 6px; font-size: 14px; margin: 4px 0 3px; }
+.ws-vcr .bar { flex: 1; height: 7px; background: #001040; border: 1px solid var(--ws-ink); }
+.ws-vcr .fill { height: 100%; width: 0; background: linear-gradient(#ffff00, #d9b400); }
+.ws-vcr .rem { color: var(--ws-soft); }
+.ws-next { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
+.ws-next .t { color: var(--ws-yellow); display: inline-block; min-width: 74px; }
+.ws-hidden { visibility: hidden; }
+
+/* grid */
+#grid-wrapper {
+  flex: 0 0 245px; min-height: 0; margin: 0 8px; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;  /* 2px border + 21px times + 5 rows x 44px */
+  background: repeating-linear-gradient(0deg, #001040 0px, #102080 80px, #102080 120px, #001040 200px);
+  border: 2px solid var(--ws-ink);
+}
+#grid-header {
+  flex: 0 0 20px; display: flex; background: var(--ws-timebar); color: var(--ws-yellow);
+  font-family: "Star4000 Large"; font-size: 14px; align-items: center;
+  border-bottom: 1px solid var(--ws-ink);
+}
+#grid-header .grid-channel-stub {
+  width: 150px; flex: 0 0 150px; justify-content: flex-start; padding-left: 8px;
+  box-shadow: none; box-sizing: border-box;
+}
+#grid-header .grid-channel-stub > * { display: none; }
+#grid-header .grid-channel-stub::before { content: "CHANNEL"; }
+#grid-header .grid-time-slot {
+  flex: 1; padding: 0 6px; color: var(--ws-yellow); font-family: "Star4000 Large";
+  font-size: 14px; font-weight: normal; background: transparent; box-shadow: none;
+  display: flex; align-items: center;
+}
+#grid-listings { flex: 1; overflow: hidden; position: relative; }
+
+.grid-row, .grid-row:nth-child(odd), .grid-row:nth-child(even) {
+  height: 44px; background: transparent; box-shadow: none;
+  border-bottom: 1px solid #000a30; box-sizing: border-box;
+}
+.grid-channel {
+  width: 150px; flex: 0 0 150px; flex-direction: row; justify-content: flex-start; align-items: center;
+  gap: 8px; padding: 0 0 0 8px; margin: 0; background: transparent; box-shadow: none;
+  border-radius: 0; box-sizing: border-box;
+}
+.grid-channel .channel-number {
+  font-family: "Star4000 Large"; font-size: 26px; font-weight: normal; color: var(--ws-yellow);
+  width: 30px; min-width: 0; flex: 0 0 30px; text-align: right; padding: 0;
+  transform: scaleX(0.85); transform-origin: right center;
+}
+.grid-channel .channel-name {
+  font-family: "Star4000 Extended"; font-size: 14px; color: var(--ws-yellow); text-transform: uppercase;
+  text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: normal; padding: 0; width: auto; flex: 1;
+}
+
+.grid-program-block,
+.grid-row:nth-child(even) .grid-program-block,
+.grid-program-block.current {
+  background: transparent !important;
+  box-shadow: inset 1px 0 0 #000a30 !important;
+  border-radius: 0; padding: 3px 6px; justify-content: center;
+}
+.grid-program-block .program-title,
+.grid-program-block.current .program-title {
+  font-family: "Star4000"; font-size: 16px; color: #fff; width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.grid-program-block .program-desc { display: none; }
+.grid-program-block .ws-time { font-family: "Star4000"; font-size: 13px; color: var(--ws-soft); white-space: nowrap; }
+
+.grid-row.guide-selected-row .grid-channel { background: var(--ws-gold); outline: none; }
+.grid-program-block.guide-selected,
+.grid-row .grid-program-block.guide-selected.current {
+  background: var(--ws-gold) !important;
+  outline: 2px solid var(--ws-yellow); outline-offset: -2px; z-index: 4;
+}
+.grid-program-block.guide-selected .program-title { color: var(--ws-yellow); }
+
+/* status bar */
+#ws-status {
+  flex: 0 0 20px; display: flex; justify-content: space-between; align-items: center;
+  padding: 0 30px;  /* 2026-11-02: was 10px */ margin-top: 4px; background: var(--ws-status); border-top: 2px solid var(--ws-ink);
+  font-family: "Star4000 Large"; font-size: 12px;
+}
+#ws-status .r { color: var(--ws-yellow); }
+
+#guide-action-toast {
+  font-family: "Star4000 Large"; color: var(--ws-yellow); background: var(--ws-header);
+  border: 2px solid var(--ws-ink); text-shadow: var(--ws-shadow);
+}
+
+/* T-ManTV title headroom (2026-11-01): overflow:hidden clipped the tops of the Star4000 Large letters. */
+#selected-program-title { line-height: 22px; padding-top: 3px; margin-top: -2px; }
+
+/* Channel-change info banner (2026-11-02). Shown by guide_overlay.py: window masked to just this bar,
+   over the full-screen show. Hidden unless body.ws-banner-on. Same 6% / 4% CRT safe margins. */
+#ws-banner {
+  display: none; position: fixed; z-index: 99999; left: 6vw; right: 6vw; bottom: 4vh; height: 132px;
+  flex-direction: column; box-sizing: border-box;
+  background: var(--ws-panel); border: 2px solid var(--ws-panel-edge);
+  box-shadow: inset 0 0 0 1px var(--ws-ink), 0 0 0 1px var(--ws-ink);
+  color: #fff; font-family: "Star4000", monospace; font-size: 16px; text-shadow: var(--ws-shadow);
+}
+body.ws-banner-on #ws-banner { display: flex; }
+#ws-banner .top { flex: 0 0 24px; display: flex; align-items: stretch; background: var(--ws-header);
+  border-bottom: 2px solid var(--ws-ink); }
+#ws-banner .tab { display: flex; align-items: center; gap: 8px; padding: 0 12px 0 8px;
+  background: var(--ws-gold); border-right: 2px solid var(--ws-ink); white-space: nowrap; }
+#ws-banner .num { font-family: "Star4000 Large"; font-size: 17px; color: var(--ws-yellow); }
+#ws-banner .net { font-family: "Star4000 Extended"; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; }
+#ws-banner .spacer { flex: 1; }
+#ws-banner .brand { align-self: center; font-family: "Star4000 Extended"; font-size: 14px;
+  color: var(--ws-yellow); letter-spacing: 1px; margin-right: 12px; }
+#ws-banner .clock { align-self: center; font-family: "Star4000 Large"; font-size: 14px; margin-right: 9px; }
+#ws-banner .body { flex: 1; padding: 7px 10px 0; min-width: 0; }
+#ws-banner .title { font-family: "Star4000 Large"; font-size: 18px; line-height: 24px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ws-banner .when { display: flex; align-items: center; gap: 10px; height: 18px; }
+#ws-banner .time { font-family: "Star4000 Large"; font-size: 13px; color: var(--ws-yellow); white-space: nowrap; }
+#ws-banner .bar { flex: 0 0 120px; height: 8px; background: #0b1250; border: 1px solid var(--ws-ink);
+  box-shadow: 0 0 0 1px var(--ws-panel-edge); }
+#ws-banner .bar i { display: block; height: 100%; background: var(--ws-gold); }
+#ws-banner .next { font-size: 14px; color: var(--ws-lavender); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; min-width: 0; }
+#ws-banner .next b { font-family: "Star4000 Large"; font-weight: normal; font-size: 12px; color: var(--ws-yellow); margin-right: 5px; }
+#ws-banner .desc { font-size: 17px; line-height: 19px; margin-top: 3px; max-height: 38px; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+#ws-banner .ws-hidden { display: none; }
+
+/* Split NFO plot (planned-nfo-redo.md, 2026-11-02): show name on the banner's top bar and in the
+   info box's channel line, episode name as the title with a small yellow S1E1 + year after it. */
+#ws-banner .show { align-self: center; margin-left: 10px; font-family: "Star4000 Large"; font-size: 14px; line-height: 22px; padding-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#ws-banner .code, #selected-program-title .ws-code { font-family: "Star4000"; font-size: 15px;
+  color: var(--ws-yellow); margin-left: 10px; }
+.ws-chline > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }

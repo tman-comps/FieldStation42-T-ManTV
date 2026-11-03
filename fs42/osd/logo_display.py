@@ -755,6 +755,11 @@ class LogoDisplay(object):
             y = 1.0 - h - y_margin
         else:
             y = -h / 2.0
+        # FS42 local: T-ManTV logo fade in/out (0.5s at each end)
+        _fs42_t = self.time_since_change
+        self._fs42_fade = min(1.0, max(0.0, _fs42_t / 0.5))
+        if not permanent and not self.config.always_show:
+            self._fs42_fade = min(self._fs42_fade, max(0.0, (display_time - _fs42_t) / 0.5))
 
         tex = self.current_logo_textures[self.current_frame_index]
         glBindTexture(GL_TEXTURE_2D, tex)
@@ -773,6 +778,7 @@ class LogoDisplay(object):
         )
 
         glColor4f(1.0, 1.0, 1.0, alpha)
+        glColor4f(1.0, 1.0, 1.0, alpha * getattr(self, "_fs42_fade", 1.0))  # FS42 local: logo fade
         glBegin(GL_QUADS)
         glTexCoord2f(0.0, 1.0)
         glVertex2f(x, y)

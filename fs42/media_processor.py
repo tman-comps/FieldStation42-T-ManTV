@@ -57,7 +57,8 @@ from fs42.catalog_entry import CatalogEntry
 
 class MediaProcessor:
     # Define media type extensions
-    VIDEO_FORMATS = ["mp4", "mpg", "mpeg", "avi", "mov", "mkv", "ts", "m4v", "webm", "wmv"]
+    VIDEO_FORMATS = ["mp4", "mpg", "mpeg", "avi", "mov", "mkv", "ts", "m4v", "webm", "wmv",
+                     "strm"]  # FS42 local: Archive stream stubs
     AUDIO_FORMATS = ["mp3", "m4a", "flac", "wav", "aac", "ogg", "opus", "wma"]
 
     # For backward compatibility, default to all formats
@@ -222,6 +223,15 @@ class MediaProcessor:
     @staticmethod
     def _get_duration(file_name) -> tuple:
         """Returns (duration, error_hint). duration is -1 on failure; error_hint is a human-readable cause or None."""
+        if str(file_name).endswith(".strm"):  # FS42 local: stub carries its own duration, no network needed
+            try:
+                with open(file_name) as f:
+                    for line in f:
+                        if line.startswith("#duration="):
+                            return float(line.split("=", 1)[1]), None
+            except Exception as e:
+                return -1, f"could not read stream stub: {e}"
+            return -1, "stream stub has no #duration= line"
         _l = logging.getLogger("MEDIA")
         try:
             probed = ffmpeg.probe(file_name)

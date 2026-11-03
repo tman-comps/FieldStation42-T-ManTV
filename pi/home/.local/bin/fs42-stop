@@ -1,0 +1,6 @@
+#!/bin/bash
+ch=$("$HOME/.local/bin/fs42-tune-back" save)
+touch "$HOME/FieldStation42/fs42_local/STOP"
+pkill -f fs42_local/start_fs42.sh; pkill -f fs42_local/remote.py; pkill -f fs42_local/guide_overlay.py; pkill -9 -f field_player.py; pkill -9 -x mpv
+pkill -9 -f "multiprocessing.spawn"; pkill -9 -f QtWebEngineProcess
+echo "FieldStation42 stopped on channel $ch (fs42-start to bring it back)"

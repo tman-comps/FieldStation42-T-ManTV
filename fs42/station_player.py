@@ -10,7 +10,102 @@ import glob
 import random
 import logging
 import time
-from python_mpv_jsonipc import MPV
+from python_mpv_jsonipc import MPV as _BaseMPV
+
+
+def _load_base_vf():
+    # Reuse the vf= line from ~/.config/mpv/mpv.conf (per-TV overscan shrink)
+    try:
+        conf = os.path.expanduser("~/.config/mpv/mpv.conf")
+        with open(conf) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("vf="):
+                    return line[3:].strip().strip('"')
+    except OSError:
+        pass
+    return ""
+
+
+_BASE_VF = _load_base_vf()
+_FS42_CROP = {"vf": ""}  # this file's #crop= from its .strm stub (set in play_file)
+
+
+class _FS42ShrinkMPV(_BaseMPV):
+    # Effect filters get the file's crop in front and the mpv.conf shrink appended; clearing restores crop + shrink.
+    def __setattr__(self, name, value):
+        if name == "vf" and _BASE_VF:
+            value = ",".join(v for v in (_FS42_CROP["vf"], value, _BASE_VF) if v)
+        super().__setattr__(name, value)
+
+
+MPV = _FS42ShrinkMPV
+
+
+_FS42_URLS = "runtime/archive_urls.json"
+_fs42_urls = {"mtime": None, "map": {}}
+
+
+def _fs42_direct_url(url):
+    # FS42 local: cached direct archive.org server link for an archive.org/download/ URL, or None
+    try:
+        m = os.path.getmtime(_FS42_URLS)
+        if m != _fs42_urls["mtime"]:
+            import json
+            with open(_FS42_URLS) as f:
+                _fs42_urls["map"] = json.load(f)
+            _fs42_urls["mtime"] = m
+        e = _fs42_urls["map"].get(url)
+        return e["url"] if e else None
+    except Exception:
+        return None
+
+
+_FS42_STUBS = "runtime/archive_stubs.json"
+_fs42_stubs = {"mtime": None, "map": {}}
+_fs42_builtin_open = open
+
+
+def _fs42_stub_text(path):
+    # FS42 local: cached text of a .strm stub, or None
+    if not str(path).endswith(".strm"):
+        return None
+    try:
+        m = os.path.getmtime(_FS42_STUBS)
+        if m != _fs42_stubs["mtime"]:
+            with _fs42_builtin_open(_FS42_STUBS) as f:
+                _fs42_stubs["map"] = json.load(f)
+            _fs42_stubs["mtime"] = m
+        return _fs42_stubs["map"].get(path)
+    except Exception:
+        return None
+
+
+def open(file, *args, **kwargs):  # FS42 local: cached .strm stubs, everything else as normal
+    text = _fs42_stub_text(file)
+    if text is not None:
+        import io
+        return io.StringIO(text)
+    return _fs42_builtin_open(file, *args, **kwargs)
+
+
+_FS42_PROXY = "http://127.0.0.1:8742/"
+
+
+def _fs42_proxy_up():
+    # FS42 local: is the local index proxy accepting connections?
+    import socket
+    try:
+        socket.create_connection(("127.0.0.1", 8742), timeout=0.3).close()
+        return True
+    except OSError:
+        return False
+
+
+def _fs42_proxy_to_archive(file_path):
+    # FS42 local: lavf:// proxy URL -> lavf:// archive.org URL (cached direct link if we have one)
+    ia = "https://archive.org/download/" + file_path[len("lavf://" + _FS42_PROXY):]
+    return "lavf://" + (_fs42_direct_url(ia) or ia)
 
 from fs42.guide_tk import guide_channel_runner, GuideCommands
 from fs42.autobump_agent import AutoBumpAgent
@@ -526,7 +621,7 @@ class StationPlayer:
 
     def play_file(self, file_path, file_duration=None, offset_seconds=None, is_stream=False, title="Unknown", content_type=None, media_type=None):
         try:
-            if os.path.exists(file_path) or is_stream or AutoBumpAgent.is_autobump_url(file_path):
+            if _fs42_stub_text(file_path) is not None or os.path.exists(file_path) or is_stream or AutoBumpAgent.is_autobump_url(file_path):  # FS42 local: cached stubs skip the NAS
                 self._l.debug(f"%%%Attempting to play {file_path}")
                 self.current_playing_file_path = file_path
 
@@ -589,9 +684,138 @@ class StationPlayer:
                 self._apply_vfx(datetime.datetime.now())
 
                 # self.mpv.vf = "lavfi=[]"
+                try:  # FS42 local: live volume leveling, Archive streams only (@fs42level)
+                    self.mpv.command("af", "remove", "@fs42level")
+                except Exception:
+                    pass
+                if file_path.endswith(".strm"):
+                    try:
+                        self.mpv.command("af", "add", "@fs42level:lavfi=[loudnorm=I=-18:LRA=7:TP=-1.5:dual_mono=true,aresample=48000]")
+                    except Exception as e:
+                        self._l.warning(f"Could not add volume leveling: {e}")
+                _fs42_prev_crop = _FS42_CROP["vf"]  # FS42 local: side-bar crop from the stub (#crop=)
+                _FS42_CROP["vf"] = ""
+                _fs42_aid = "auto"  # FS42 local: audio track from the stub (#aid=N)
+                if file_path.endswith(".strm"):
+                    with open(file_path) as _f:
+                        for _line in _f:
+                            if _line.startswith("#aid="):
+                                _fs42_aid = _line.split("=", 1)[1].strip()
+                self.mpv.aid = "auto"  # the stub's track is picked once the file plays (below)
+                if file_path.endswith(".strm"):
+                    with open(file_path) as _f:
+                        for _line in _f:
+                            if _line.startswith("#crop="):
+                                _FS42_CROP["vf"] = "crop=" + _line.split("=", 1)[1].strip()
+                if _FS42_CROP["vf"] or _fs42_prev_crop:
+                    self._apply_vfx(datetime.datetime.now())  # vf again, now with this file's crop (or none)
+                _fs42_prev_crop = _FS42_CROP["vf"]  # FS42 local: side-bar crop from the stub (#crop=)
+                _FS42_CROP["vf"] = ""
+                if file_path.endswith(".strm"):
+                    with open(file_path) as _f:
+                        for _line in _f:
+                            if _line.startswith("#crop="):
+                                _FS42_CROP["vf"] = "crop=" + _line.split("=", 1)[1].strip()
+                if _FS42_CROP["vf"] or _fs42_prev_crop:
+                    self._apply_vfx(datetime.datetime.now())  # vf again, now with this file's crop (or none)
+                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
+                    _fs42_start = 0.0
+                    with open(file_path) as _f:
+                        for _line in _f:
+                            if _line.startswith("http"):
+                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
+                                file_path = "lavf://" + _line.strip()
+                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
+                                file_path = _line.strip()
+                            elif _line.startswith("#start="):
+                                _fs42_start = float(_line.split("=", 1)[1])
+                    offset_seconds = (offset_seconds or 0) + _fs42_start
+                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
+                    _fs42_start = 0.0
+                    with open(file_path) as _f:
+                        for _line in _f:
+                            if _line.startswith("http"):
+                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
+                                file_path = "lavf://" + _line.strip()
+                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
+                                file_path = _line.strip()
+                            elif _line.startswith("#start="):
+                                _fs42_start = float(_line.split("=", 1)[1])
+                    offset_seconds = (offset_seconds or 0) + _fs42_start
+                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
+                    _fs42_start = 0.0
+                    with open(file_path) as _f:
+                        for _line in _f:
+                            if _line.startswith("http"):
+                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
+                                file_path = "lavf://" + _line.strip()
+                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
+                                file_path = _line.strip()
+                            elif _line.startswith("#start="):
+                                _fs42_start = float(_line.split("=", 1)[1])
+                    offset_seconds = (offset_seconds or 0) + _fs42_start
+                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
+                    _fs42_start = 0.0
+                    with open(file_path) as _f:
+                        for _line in _f:
+                            if _line.startswith("http"):
+                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
+                                file_path = "lavf://" + _line.strip()
+                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
+                                file_path = _line.strip()
+                            elif _line.startswith("#start="):
+                                _fs42_start = float(_line.split("=", 1)[1])
+                    offset_seconds = (offset_seconds or 0) + _fs42_start
+                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
+                    _fs42_start = 0.0
+                    with open(file_path) as _f:
+                        for _line in _f:
+                            if _line.startswith("http"):
+                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
+                                file_path = "lavf://" + _line.strip()
+                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
+                                file_path = _line.strip()
+                            elif _line.startswith("#start="):
+                                _fs42_start = float(_line.split("=", 1)[1])
+                    offset_seconds = (offset_seconds or 0) + _fs42_start
+                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
+                    _fs42_start = 0.0
+                    with open(file_path) as _f:
+                        for _line in _f:
+                            if _line.startswith("http"):
+                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
+                                file_path = "lavf://" + _line.strip()
+                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
+                                file_path = _line.strip()
+                            elif _line.startswith("#start="):
+                                _fs42_start = float(_line.split("=", 1)[1])
+                    offset_seconds = (offset_seconds or 0) + _fs42_start
                 self._l.info(f"playing {file_path}")
+                _fs42_fallback = None  # FS42 local: use the cached direct archive.org server link
+                if file_path.startswith("lavf://"):
+                    _fs42_direct = _fs42_direct_url(file_path[len("lavf://"):])
+                    if _fs42_direct:
+                        _fs42_fallback = file_path
+                        file_path = "lavf://" + _fs42_direct
+                        self._l.info(f"direct link {file_path}")
+                _fs42_proxy_fb = None  # FS42 local: index proxy down -> straight from archive.org
+                if file_path.startswith("lavf://" + _FS42_PROXY):
+                    if _fs42_proxy_up():
+                        _fs42_proxy_fb = _fs42_proxy_to_archive(file_path)
+                    else:
+                        _fs42_ia = "lavf://https://archive.org/download/" + file_path[len("lavf://" + _FS42_PROXY):]
+                        file_path = _fs42_proxy_to_archive(file_path)
+                        if file_path != _fs42_ia:
+                            _fs42_fallback = _fs42_ia  # direct link fails -> the redirect retry below
+                        self._l.warning(f"index proxy down, playing {file_path}")
                 self.mpv.command("playlist-clear")
-                self.mpv.play(file_path)
+                self.mpv.hr_seek = "no"  # keyframe seeks only -- exact seeks are what made channel changes freeze
+                if not is_stream and offset_seconds is not None and offset_seconds > 0:
+                    # Seek as part of the initial load so mpv never renders a pre-seek frame
+                    # (this is what caused the single-frame flash on channel change)
+                    self.mpv.command("loadfile", file_path, "replace", f"start={offset_seconds}")
+                else:
+                    self.mpv.play(file_path)
                 
 
                 timeout_seconds = StationManager().server_conf.get("video_seek_timeout", 10)
@@ -600,11 +824,35 @@ class StationPlayer:
                 while True:
                     try:
                         if self.mpv.time_pos is not None:
+                            if _fs42_aid != "auto":  # FS42 local: stub audio track, now that the new file plays
+                                self.mpv.aid = _fs42_aid
                             break
+                        if _fs42_proxy_fb and time.time() - start_time > 1.5 and self.mpv.idle_active:
+                            # FS42 local: proxy link failed to start -> retry once from archive.org
+                            self._l.warning(f"Proxy link failed, retrying {_fs42_proxy_fb}")
+                            file_path, _fs42_proxy_fb = _fs42_proxy_fb, None
+                            if offset_seconds is not None and offset_seconds > 0:
+                                self.mpv.command("loadfile", file_path, "replace", f"start={offset_seconds}")
+                            else:
+                                self.mpv.play(file_path)
+                            start_time = time.time()
+                            continue
+                        if _fs42_fallback and (time.time() - start_time > timeout_seconds / 2
+                                               or (time.time() - start_time > 1.5 and self.mpv.idle_active)):
+                            # FS42 local: direct link failed -> retry once through the archive.org redirect
+                            self._l.warning(f"Direct link failed, retrying {_fs42_fallback}")
+                            _fs42_urls["map"].pop(_fs42_fallback[len("lavf://"):], None)
+                            file_path, _fs42_fallback = _fs42_fallback, None
+                            if offset_seconds is not None and offset_seconds > 0:
+                                self.mpv.command("loadfile", file_path, "replace", f"start={offset_seconds}")
+                            else:
+                                self.mpv.play(file_path)
+                            start_time = time.time()
+                            continue
                         if time.time() - start_time > timeout_seconds:
                             self._l.error(f"Timeout waiting for playback to start on {file_path}")
                             return False
-                        if is_stream:
+                        if is_stream or file_path.startswith("lavf://"):  # FS42 local: remote works during Archive loads
                             response = self.input_check_fn()
                             if (
                                 response
@@ -622,7 +870,27 @@ class StationPlayer:
 
                 # Perform seek if needed (before showing overlay)
                 if not is_stream and offset_seconds is not None and offset_seconds > 0:
-                    self._seek_with_verify(file_path, offset_seconds, timeout_seconds)
+                    pos = None
+                    try:
+                        pos = self.mpv.time_pos
+                    except Exception:
+                        pos = None
+                    if pos is None or abs(pos - offset_seconds) > 20.0:
+                        self._l.warning(f"Landed at {pos} instead of {offset_seconds} on {file_path}, correcting")
+                        self._seek_with_verify(file_path, offset_seconds, timeout_seconds)
+
+                # FS42 local: channel number on screen after a channel change (mpv OSD)
+                if getattr(self, "_fs42_osd_pending", False) and self.station_config:
+                    self._fs42_osd_pending = False
+                    try:
+                        sc = self.station_config
+                        self.mpv.command("show-text", f"{sc['channel_number']}", 2500)
+                    except Exception as e:
+                        self._l.warning(f"Could not show channel OSD: {e}")
+                if not is_stream and offset_seconds is not None and offset_seconds > 0:  # FS42 local: asked seek spot (file time, incl. #start)
+                    self._fs42_seek_target = offset_seconds
+                else:
+                    self._fs42_seek_target = None
 
                 # Show Now Playing overlay for audio feature files
                 self._l.info(f"Media type: {media_type}, Content type: {content_type}")
@@ -657,7 +925,7 @@ class StationPlayer:
             return False
 
     def _seek_with_verify(self, file_path, offset_seconds, timeout_seconds,
-                          tolerance=1.0, verify_window=2.0, retry_delay=0.2):
+                          tolerance=20.0, verify_window=2.0, retry_delay=0.2):
 
         def safe_prop(name, default=None):
             try:
@@ -672,7 +940,7 @@ class StationPlayer:
             attempt += 1
 
             try:
-                self.mpv.command("seek", offset_seconds, "absolute")
+                self.mpv.command("seek", offset_seconds, "absolute+keyframes")
             except Exception as e:
                 self._l.debug(f"Seek not accepted yet on {file_path}: {e} (attempt {attempt})")
                 time.sleep(retry_delay)
@@ -700,6 +968,7 @@ class StationPlayer:
 
     def play_and_wait(self, file_path):
         self._l.info(f"Play and wait on file {file_path}")
+        self.mpv.aid = "auto"  # FS42 local: no stub audio track (#aid) carried over
         self._close_now_playing()
         self.mpv.vf = ""
         self.mpv.af = ""
@@ -731,6 +1000,7 @@ class StationPlayer:
                 return response
 
     def play_file_list(self, file_list):
+        self.mpv.aid = "auto"  # FS42 local: no stub audio track (#aid) carried over
 
         try:
             # Filter out any files that don't exist
@@ -919,6 +1189,8 @@ class StationPlayer:
             return PlayerOutcome(PlayerState.EXIT_COMMAND, msg)
 
         ctx = multiprocessing.get_context("spawn")
+        import subprocess as _fs42_sp  # FS42 local: clear leftover web audio from the last web channel
+        _fs42_sp.run(["pkill", "-9", "-f", "QtWebEngineProcess"], check=False)
 
         # create the pipe to communicate with the web channel
         self.web_queue = ctx.Queue()
@@ -994,6 +1266,8 @@ class StationPlayer:
                     self._l.info("Sending the web channel shutdown command")
                     self.web_queue.put("hide_window")
                     self.web_process.join()
+                    import subprocess as _fs42_sp  # FS42 local: clear leftover web audio
+                    _fs42_sp.run(["pkill", "-9", "-f", "QtWebEngineProcess"], check=False)
                     self.web_process = None
                     self.web_queue = None
                     return response
@@ -1014,6 +1288,99 @@ class StationPlayer:
         finally:
             if self.schedule_lock:
                 self.schedule_lock.release()
+
+    def play_ondemand(self, path, start=0.0, title="On Demand"):  # FS42 local: On Demand menu
+        import json as _od_json, urllib.request as _od_url
+        pos_file = "runtime/ondemand_positions.json"
+
+        def tell_overlay(event):
+            try:
+                _od_url.urlopen("http://127.0.0.1:4243/ondemand/" + event, timeout=1).close()
+            except Exception:
+                pass
+
+        def save(pos, dur, done=False):
+            try:
+                with open(pos_file) as f:
+                    data = _od_json.load(f)
+            except (OSError, ValueError):
+                data = {}
+            data[path] = {"pos": round(max(pos, 0), 1), "dur": round(dur or 0, 1), "ts": int(time.time()), "done": done}
+            try:
+                with open(pos_file + ".tmp", "w") as f:
+                    _od_json.dump(data, f)
+                os.replace(pos_file + ".tmp", pos_file)
+            except OSError as e:
+                self._l.warning(f"On Demand: could not save position: {e}")
+
+        # stub trim: positions are kept from the episode's own start
+        stub_start, dur = 0.0, None
+        try:
+            if path.endswith(".strm"):
+                with open(path) as f:
+                    for line in f:
+                        if line.startswith("#start="):
+                            stub_start = float(line.split("=", 1)[1])
+                        elif line.startswith("#duration="):
+                            dur = float(line.split("=", 1)[1])
+        except (OSError, ValueError):
+            pass
+        self._l.info(f"On Demand: {path} from {start:.0f}s")
+        self._fs42_osd_pending = False
+        self.mpv.loop_playlist = "no"
+        try:
+            self.mpv.pause = False
+        except Exception:
+            pass
+        worked = self.play_file(path, file_duration=dur, offset_seconds=start, title=title,
+                                content_type="ondemand", media_type="video")
+        if self._pending_response:
+            response, self._pending_response = self._pending_response, None
+            tell_overlay("stopped")
+            return response
+        if not worked:
+            self._l.error(f"On Demand: could not play {path}")
+            tell_overlay("failed")
+            return PlayerOutcome(PlayerState.SUCCESS)
+        tell_overlay("started")
+        end_at = stub_start + dur if dur else None
+        pos, last_check, last_save = start, 0.0, time.time()
+        try:
+            while True:
+                time.sleep(0.05)
+                response = self.input_check_fn()
+                if response:
+                    if self.handle_runtime_command_outcome(response) or self.is_non_interrupting(response):
+                        continue
+                    save(pos, dur)
+                    tell_overlay("stopped")
+                    return response
+                now = time.time()
+                if now - last_check < 0.5:
+                    continue
+                last_check = now
+                try:
+                    tp, eof, idle = self.mpv.time_pos, self.mpv.eof_reached, self.mpv.idle_active
+                    if dur is None and self.mpv.duration:
+                        dur = self.mpv.duration - stub_start
+                except Exception:
+                    tp, eof, idle = None, False, False
+                if tp is not None:
+                    pos = tp - stub_start
+                if eof or idle or (end_at and tp is not None and tp >= end_at - 0.5):
+                    finished = bool(dur) and pos >= dur * 0.9
+                    self._l.info(f"On Demand: {'finished' if finished else 'stopped early'} at {pos:.0f}s")
+                    save(dur if finished else pos, dur, finished)
+                    tell_overlay("ended")
+                    return PlayerOutcome(PlayerState.SUCCESS)
+                if now - last_save >= 10:
+                    save(pos, dur)
+                    last_save = now
+        finally:
+            try:
+                self.mpv.pause = False   # a paused On Demand title must not leave live TV paused
+            except Exception:
+                pass
 
     def play_slot(self, network_name, when):
         liquid = LiquidManager()
@@ -1049,9 +1416,20 @@ class StationPlayer:
 
         if len(play_point.plan):
             initial_skip = play_point.offset
+            _fs42_clock = datetime.datetime.now() - datetime.timedelta(seconds=initial_skip)  # FS42 local: planned start of each entry (ad catch-up)
+            _fs42_ads = sum(e.duration for e in play_point.plan[play_point.index + 1:] if getattr(e, "content_type", "feature") in ("commercial", "bump"))
+            if (0 < initial_skip <= 120 and _fs42_ads >= initial_skip + 30 and time.time() - getattr(self, "_fs42_block_done", 0) < 10
+                    and getattr(play_point.plan[play_point.index], "content_type", "feature") not in ("commercial", "bump")):
+                self._l.info(f"Running {initial_skip:.1f}s late from the last block: starting from the top, ads will catch up")
+                initial_skip = 0
 
             # iterate over the slice from index to end
             for entry in play_point.plan[play_point.index :]:
+                _fs42_late = (datetime.datetime.now() - _fs42_clock).total_seconds()  # FS42 local: ad catch-up
+                _fs42_clock += datetime.timedelta(seconds=entry.duration)
+                if initial_skip == 0 and getattr(entry, "content_type", "feature") in ("commercial", "bump") and _fs42_late >= entry.duration:
+                    self._l.info(f"Running {_fs42_late:.1f}s late: dropped {os.path.basename(entry.path)} ({entry.duration:.1f}s)")
+                    continue
                 self._l.info(f"Starting entry at {datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
                 self._l.info(f"Playing entry {entry}")
                 self._l.info(f"Initial Skip: {initial_skip}")
@@ -1073,7 +1451,7 @@ class StationPlayer:
                 stream_is_down = False
                 last_osd_refresh = 0.0
                 if not worked:
-                    if is_stream:
+                    if is_stream or entry.path.endswith(".strm"):  # FS42 local: Archive down -> TECHNICAL DIFFICULTIES
                         self._l.warning(f"Stream unavailable, activating fallback: {entry.path}")
                         stream_is_down = True
                         last_osd_refresh = time.time()
@@ -1099,6 +1477,10 @@ class StationPlayer:
 
                     # Calculate target end time using wall clock
                     target_end_time = datetime.datetime.now() + datetime.timedelta(seconds=(entry.duration - initial_skip))
+                    _fs42_tgt = getattr(self, "_fs42_seek_target", None)  # FS42 local: end a resumed stream piece by its real position
+                    self._fs42_seek_target = None
+                    _fs42_stop_pos = (_fs42_tgt + entry.duration - initial_skip) if (_fs42_tgt and entry.path.endswith(".strm")) else None
+                    _fs42_ext = False
                     self._l.info(f"Target end time: {target_end_time.strftime('%H:%M:%S.%f')[:-3]}")
                     stream_down_message = (self.station_config.get("stream_down_message", "TECHNICAL DIFFICULTIES") if self.station_config else "TECHNICAL DIFFICULTIES")
 
@@ -1113,6 +1495,16 @@ class StationPlayer:
 
                         # Calculate time remaining based on wall clock
                         time_remaining = (target_end_time - datetime.datetime.now()).total_seconds()
+                        if _fs42_stop_pos is not None and -15 < time_remaining <= FADE_DURATION + 1:  # FS42 local: landed early -> fade and cut by the real position
+                            try:
+                                _fs42_p = self.mpv.time_pos
+                                if _fs42_p is not None and _fs42_stop_pos - _fs42_p > time_remaining + 0.05:
+                                    if not _fs42_ext:
+                                        self._l.info(f"Clock says {time_remaining:.2f}s left at {_fs42_p:.2f}s, playing on to {_fs42_stop_pos:.2f}s")
+                                        _fs42_ext = True
+                                    time_remaining = min(_fs42_stop_pos - _fs42_p, time_remaining + 15)
+                            except Exception:
+                                pass
 
                         # Initiate fade-to-black effect when entering fade window (only if clipped)
                         if 0 < time_remaining <= FADE_DURATION and not fade_active and is_clipped:
@@ -1205,6 +1597,7 @@ class StationPlayer:
                 initial_skip = 0
 
             self._l.info("Done playing block")
+            self._fs42_block_done = time.time()  # FS42 local: the next block follows straight on (ad catch-up)
             return PlayerOutcome(PlayerState.SUCCESS)
         else:
             self.current_playing_file_path = None

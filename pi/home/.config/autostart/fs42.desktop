@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=FieldStation42
+Exec=sh -c "$HOME/.local/bin/fs42-start"
+X-GNOME-Autostart-enabled=true

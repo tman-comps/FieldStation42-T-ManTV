@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1c0a57">
+<title>T-ManTV Remote</title>
+<style>
+  :root { --bg:#111326; --panel:#21285a; --btn:#2c3570; --btn-hi:#3b4790; --gold:#bc5904; --yellow:#ffff00; --text:#e8ebff; --dim:#9aa2d6; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; }
+  body { max-width:420px; margin:0 auto; padding:12px 16px 24px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+  header { background:#1c0a57; border-radius:12px; padding:10px 14px; margin-bottom:14px; }
+  .brand { font-weight:800; letter-spacing:.04em; color:var(--yellow); font-size:15px; }
+  #now { font-size:18px; font-weight:700; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #sub { font-size:13px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-height:1.2em; }
+  button { font:inherit; color:var(--text); background:var(--btn); border:0; border-radius:12px; padding:0; min-height:54px; font-weight:700; font-size:16px; cursor:pointer; }
+  button:active, button.hit { background:var(--btn-hi); transform:scale(.97); }
+  .row { display:grid; gap:10px; margin-bottom:10px; }
+  .r3 { grid-template-columns:repeat(3,1fr); }
+  .gold { background:linear-gradient(#bc5904,#974717); }
+  .gold:active, .gold.hit { background:linear-gradient(#d86a0a,#b0561d); }
+  .dpad { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,64px); gap:8px; margin:14px auto; max-width:260px; }
+  .dpad button { min-height:0; font-size:22px; }
+  .dpad .ok { border-radius:50%; background:var(--gold); font-size:18px; }
+  .side { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px; }
+  .stack { display:grid; gap:8px; }
+  .stack span { text-align:center; font-size:12px; color:var(--dim); }
+  .pad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .pad button { font-size:22px; }
+  #dial { text-align:center; font-size:28px; font-weight:800; color:var(--yellow); min-height:36px; letter-spacing:.1em; }
+  #err { text-align:center; color:#ff8a8a; font-size:13px; min-height:1.2em; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">T-ManTV</div>
+  <div id="now">Connecting…</div>
+  <div id="sub"></div>
+</header>
+
+<div class="row r3">
+  <button class="gold" data-k="KEY_HOME">Guide</button>
+  <button class="gold" data-k="KEY_CONFIG">On Demand</button>
+  <button data-k="KEY_BACK">Back</button>
+</div>
+
+<div class="dpad">
+  <span></span><button data-k="KEY_UP" aria-label="Up">▲</button><span></span>
+  <button data-k="KEY_LEFT" aria-label="Left">◀</button><button class="ok" data-k="KEY_ENTER">OK</button><button data-k="KEY_RIGHT" aria-label="Right">▶</button>
+  <span></span><button data-k="KEY_DOWN" aria-label="Down">▼</button><span></span>
+</div>
+
+<div class="side">
+  <div class="stack"><button data-k="KEY_VOLUMEUP">VOL +</button><button data-k="KEY_VOLUMEDOWN">VOL −</button></div>
+  <div class="stack"><button data-k="KEY_MUTE">Mute</button><span>Arrows move the guide when it's open</span></div>
+  <div class="stack"><button data-k="KEY_PAGEUP">CH ▲</button><button data-k="KEY_PAGEDOWN">CH ▼</button></div>
+</div>
+
+<div id="dial"></div>
+<div class="pad">
+  <button data-k="KEY_1">1</button><button data-k="KEY_2">2</button><button data-k="KEY_3">3</button>
+  <button data-k="KEY_4">4</button><button data-k="KEY_5">5</button><button data-k="KEY_6">6</button>
+  <button data-k="KEY_7">7</button><button data-k="KEY_8">8</button><button data-k="KEY_9">9</button>
+  <span></span><button data-k="KEY_0">0</button><span></span>
+</div>
+<div id="err"></div>
+
+<script>
+  const now = document.getElementById('now'), sub = document.getElementById('sub');
+  const dial = document.getElementById('dial'), err = document.getElementById('err');
+  let dialTimer = null, statusTimer = null;
+
+  async function press(k, btn) {
+    btn.classList.add('hit'); setTimeout(() => btn.classList.remove('hit'), 120);
+    if (navigator.vibrate) navigator.vibrate(15);
+    if (/^KEY_\d$/.test(k)) {
+      dial.textContent = (dial.textContent + k.slice(4)).slice(-3);
+      clearTimeout(dialTimer); dialTimer = setTimeout(() => { dial.textContent = ''; }, 1500);
+    }
+    try {
+      const r = await fetch('/key/' + k, { method: 'POST' });
+      err.textContent = r.ok ? '' : 'Button not accepted';
+    } catch (e) { err.textContent = 'Can’t reach the TV'; }
+    clearTimeout(statusTimer); statusTimer = setTimeout(refresh, 700);
+  }
+
+  document.querySelectorAll('button[data-k]').forEach(b => {
+    b.addEventListener('click', () => press(b.dataset.k, b));
+  });
+
+  async function refresh() {
+    try {
+      const s = await (await fetch('/status', { cache: 'no-store' })).json();
+      now.textContent = s.channel != null ? `Ch ${s.channel} · ${s.network || ''}` : 'Off air';
+      const mode = s.guide ? 'Guide open' : s.od === 'playing' ? 'On Demand playing' : s.od ? 'On Demand menu' : '';
+      sub.textContent = [mode, s.title].filter(Boolean).join(' · ');
+      err.textContent = '';
+    } catch (e) { now.textContent = 'Can’t reach the TV'; sub.textContent = ''; }
+  }
+  refresh();
+  setInterval(() => { if (!document.hidden) refresh(); }, 4000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+</script>
+</body>
+</html>
