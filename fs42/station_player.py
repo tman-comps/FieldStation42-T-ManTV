@@ -10,102 +10,10 @@ import glob
 import random
 import logging
 import time
-from python_mpv_jsonipc import MPV as _BaseMPV
+from python_mpv_jsonipc import MPV
+from fs42 import tmantv
 
-
-def _load_base_vf():
-    # Reuse the vf= line from ~/.config/mpv/mpv.conf (per-TV overscan shrink)
-    try:
-        conf = os.path.expanduser("~/.config/mpv/mpv.conf")
-        with open(conf) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("vf="):
-                    return line[3:].strip().strip('"')
-    except OSError:
-        pass
-    return ""
-
-
-_BASE_VF = _load_base_vf()
-_FS42_CROP = {"vf": ""}  # this file's #crop= from its .strm stub (set in play_file)
-
-
-class _FS42ShrinkMPV(_BaseMPV):
-    # Effect filters get the file's crop in front and the mpv.conf shrink appended; clearing restores crop + shrink.
-    def __setattr__(self, name, value):
-        if name == "vf" and _BASE_VF:
-            value = ",".join(v for v in (_FS42_CROP["vf"], value, _BASE_VF) if v)
-        super().__setattr__(name, value)
-
-
-MPV = _FS42ShrinkMPV
-
-
-_FS42_URLS = "runtime/archive_urls.json"
-_fs42_urls = {"mtime": None, "map": {}}
-
-
-def _fs42_direct_url(url):
-    # FS42 local: cached direct archive.org server link for an archive.org/download/ URL, or None
-    try:
-        m = os.path.getmtime(_FS42_URLS)
-        if m != _fs42_urls["mtime"]:
-            import json
-            with open(_FS42_URLS) as f:
-                _fs42_urls["map"] = json.load(f)
-            _fs42_urls["mtime"] = m
-        e = _fs42_urls["map"].get(url)
-        return e["url"] if e else None
-    except Exception:
-        return None
-
-
-_FS42_STUBS = "runtime/archive_stubs.json"
-_fs42_stubs = {"mtime": None, "map": {}}
-_fs42_builtin_open = open
-
-
-def _fs42_stub_text(path):
-    # FS42 local: cached text of a .strm stub, or None
-    if not str(path).endswith(".strm"):
-        return None
-    try:
-        m = os.path.getmtime(_FS42_STUBS)
-        if m != _fs42_stubs["mtime"]:
-            with _fs42_builtin_open(_FS42_STUBS) as f:
-                _fs42_stubs["map"] = json.load(f)
-            _fs42_stubs["mtime"] = m
-        return _fs42_stubs["map"].get(path)
-    except Exception:
-        return None
-
-
-def open(file, *args, **kwargs):  # FS42 local: cached .strm stubs, everything else as normal
-    text = _fs42_stub_text(file)
-    if text is not None:
-        import io
-        return io.StringIO(text)
-    return _fs42_builtin_open(file, *args, **kwargs)
-
-
-_FS42_PROXY = "http://127.0.0.1:8742/"
-
-
-def _fs42_proxy_up():
-    # FS42 local: is the local index proxy accepting connections?
-    import socket
-    try:
-        socket.create_connection(("127.0.0.1", 8742), timeout=0.3).close()
-        return True
-    except OSError:
-        return False
-
-
-def _fs42_proxy_to_archive(file_path):
-    # FS42 local: lavf:// proxy URL -> lavf:// archive.org URL (cached direct link if we have one)
-    ia = "https://archive.org/download/" + file_path[len("lavf://" + _FS42_PROXY):]
-    return "lavf://" + (_fs42_direct_url(ia) or ia)
+MPV = tmantv.ShrinkMPV  # T-ManTV: keeps the mpv.conf shrink and the stub crop on every vf change
 
 from fs42.guide_tk import guide_channel_runner, GuideCommands
 from fs42.autobump_agent import AutoBumpAgent
@@ -621,7 +529,7 @@ class StationPlayer:
 
     def play_file(self, file_path, file_duration=None, offset_seconds=None, is_stream=False, title="Unknown", content_type=None, media_type=None):
         try:
-            if _fs42_stub_text(file_path) is not None or os.path.exists(file_path) or is_stream or AutoBumpAgent.is_autobump_url(file_path):  # FS42 local: cached stubs skip the NAS
+            if tmantv.stub_text(file_path) is not None or os.path.exists(file_path) or is_stream or AutoBumpAgent.is_autobump_url(file_path):  # FS42 local: cached stubs skip the NAS
                 self._l.debug(f"%%%Attempting to play {file_path}")
                 self.current_playing_file_path = file_path
 
@@ -684,127 +592,43 @@ class StationPlayer:
                 self._apply_vfx(datetime.datetime.now())
 
                 # self.mpv.vf = "lavfi=[]"
+                stub = tmantv.read_stub(file_path) if file_path.endswith(".strm") else None  # FS42 local: Archive stream stub
                 try:  # FS42 local: live volume leveling, Archive streams only (@fs42level)
                     self.mpv.command("af", "remove", "@fs42level")
                 except Exception:
                     pass
-                if file_path.endswith(".strm"):
+                if stub:
                     try:
                         self.mpv.command("af", "add", "@fs42level:lavfi=[loudnorm=I=-18:LRA=7:TP=-1.5:dual_mono=true,aresample=48000]")
                     except Exception as e:
                         self._l.warning(f"Could not add volume leveling: {e}")
-                _fs42_prev_crop = _FS42_CROP["vf"]  # FS42 local: side-bar crop from the stub (#crop=)
-                _FS42_CROP["vf"] = ""
-                _fs42_aid = "auto"  # FS42 local: audio track from the stub (#aid=N)
-                if file_path.endswith(".strm"):
-                    with open(file_path) as _f:
-                        for _line in _f:
-                            if _line.startswith("#aid="):
-                                _fs42_aid = _line.split("=", 1)[1].strip()
-                self.mpv.aid = "auto"  # the stub's track is picked once the file plays (below)
-                if file_path.endswith(".strm"):
-                    with open(file_path) as _f:
-                        for _line in _f:
-                            if _line.startswith("#crop="):
-                                _FS42_CROP["vf"] = "crop=" + _line.split("=", 1)[1].strip()
-                if _FS42_CROP["vf"] or _fs42_prev_crop:
+                # FS42 local: side-bar crop from the stub (#crop=); refilter when a crop comes or goes
+                _fs42_prev_crop = tmantv.CROP["vf"]
+                tmantv.CROP["vf"] = stub["crop"] if stub else ""
+                if tmantv.CROP["vf"] or _fs42_prev_crop:
                     self._apply_vfx(datetime.datetime.now())  # vf again, now with this file's crop (or none)
-                _fs42_prev_crop = _FS42_CROP["vf"]  # FS42 local: side-bar crop from the stub (#crop=)
-                _FS42_CROP["vf"] = ""
-                if file_path.endswith(".strm"):
-                    with open(file_path) as _f:
-                        for _line in _f:
-                            if _line.startswith("#crop="):
-                                _FS42_CROP["vf"] = "crop=" + _line.split("=", 1)[1].strip()
-                if _FS42_CROP["vf"] or _fs42_prev_crop:
-                    self._apply_vfx(datetime.datetime.now())  # vf again, now with this file's crop (or none)
-                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
-                    _fs42_start = 0.0
-                    with open(file_path) as _f:
-                        for _line in _f:
-                            if _line.startswith("http"):
-                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
-                                file_path = "lavf://" + _line.strip()
-                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
-                                file_path = _line.strip()
-                            elif _line.startswith("#start="):
-                                _fs42_start = float(_line.split("=", 1)[1])
-                    offset_seconds = (offset_seconds or 0) + _fs42_start
-                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
-                    _fs42_start = 0.0
-                    with open(file_path) as _f:
-                        for _line in _f:
-                            if _line.startswith("http"):
-                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
-                                file_path = "lavf://" + _line.strip()
-                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
-                                file_path = _line.strip()
-                            elif _line.startswith("#start="):
-                                _fs42_start = float(_line.split("=", 1)[1])
-                    offset_seconds = (offset_seconds or 0) + _fs42_start
-                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
-                    _fs42_start = 0.0
-                    with open(file_path) as _f:
-                        for _line in _f:
-                            if _line.startswith("http"):
-                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
-                                file_path = "lavf://" + _line.strip()
-                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
-                                file_path = _line.strip()
-                            elif _line.startswith("#start="):
-                                _fs42_start = float(_line.split("=", 1)[1])
-                    offset_seconds = (offset_seconds or 0) + _fs42_start
-                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
-                    _fs42_start = 0.0
-                    with open(file_path) as _f:
-                        for _line in _f:
-                            if _line.startswith("http"):
-                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
-                                file_path = "lavf://" + _line.strip()
-                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
-                                file_path = _line.strip()
-                            elif _line.startswith("#start="):
-                                _fs42_start = float(_line.split("=", 1)[1])
-                    offset_seconds = (offset_seconds or 0) + _fs42_start
-                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
-                    _fs42_start = 0.0
-                    with open(file_path) as _f:
-                        for _line in _f:
-                            if _line.startswith("http"):
-                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
-                                file_path = "lavf://" + _line.strip()
-                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
-                                file_path = _line.strip()
-                            elif _line.startswith("#start="):
-                                _fs42_start = float(_line.split("=", 1)[1])
-                    offset_seconds = (offset_seconds or 0) + _fs42_start
-                if file_path.endswith(".strm"):  # FS42 local: Archive stream stub -> its URL (+ trim start)
-                    _fs42_start = 0.0
-                    with open(file_path) as _f:
-                        for _line in _f:
-                            if _line.startswith("http"):
-                                # lavf:// skips mpv's yt-dlp hook (it added ~11 s per load)
-                                file_path = "lavf://" + _line.strip()
-                            elif _line.startswith("/"):  # FS42 local: stub pointing at a NAS file
-                                file_path = _line.strip()
-                            elif _line.startswith("#start="):
-                                _fs42_start = float(_line.split("=", 1)[1])
-                    offset_seconds = (offset_seconds or 0) + _fs42_start
+                # FS42 local: audio track from the stub (#aid=N), picked once the file plays (below)
+                _fs42_aid = stub["aid"] if stub else "auto"
+                self.mpv.aid = "auto"
+                if stub:  # FS42 local: stub -> its URL or NAS file (+ trim start)
+                    if stub["target"]:
+                        file_path = stub["target"]
+                    offset_seconds = (offset_seconds or 0) + stub["start"]
                 self._l.info(f"playing {file_path}")
                 _fs42_fallback = None  # FS42 local: use the cached direct archive.org server link
                 if file_path.startswith("lavf://"):
-                    _fs42_direct = _fs42_direct_url(file_path[len("lavf://"):])
+                    _fs42_direct = tmantv.direct_url(file_path[len("lavf://"):])
                     if _fs42_direct:
                         _fs42_fallback = file_path
                         file_path = "lavf://" + _fs42_direct
                         self._l.info(f"direct link {file_path}")
                 _fs42_proxy_fb = None  # FS42 local: index proxy down -> straight from archive.org
-                if file_path.startswith("lavf://" + _FS42_PROXY):
-                    if _fs42_proxy_up():
-                        _fs42_proxy_fb = _fs42_proxy_to_archive(file_path)
+                if file_path.startswith("lavf://" + tmantv.PROXY):
+                    if tmantv.proxy_up():
+                        _fs42_proxy_fb = tmantv.proxy_to_archive(file_path)
                     else:
-                        _fs42_ia = "lavf://https://archive.org/download/" + file_path[len("lavf://" + _FS42_PROXY):]
-                        file_path = _fs42_proxy_to_archive(file_path)
+                        _fs42_ia = tmantv.archive_url(file_path)
+                        file_path = tmantv.proxy_to_archive(file_path)
                         if file_path != _fs42_ia:
                             _fs42_fallback = _fs42_ia  # direct link fails -> the redirect retry below
                         self._l.warning(f"index proxy down, playing {file_path}")
@@ -841,7 +665,7 @@ class StationPlayer:
                                                or (time.time() - start_time > 1.5 and self.mpv.idle_active)):
                             # FS42 local: direct link failed -> retry once through the archive.org redirect
                             self._l.warning(f"Direct link failed, retrying {_fs42_fallback}")
-                            _fs42_urls["map"].pop(_fs42_fallback[len("lavf://"):], None)
+                            tmantv.forget_direct_url(_fs42_fallback[len("lavf://"):])
                             file_path, _fs42_fallback = _fs42_fallback, None
                             if offset_seconds is not None and offset_seconds > 0:
                                 self.mpv.command("loadfile", file_path, "replace", f"start={offset_seconds}")
@@ -1317,12 +1141,8 @@ class StationPlayer:
         stub_start, dur = 0.0, None
         try:
             if path.endswith(".strm"):
-                with open(path) as f:
-                    for line in f:
-                        if line.startswith("#start="):
-                            stub_start = float(line.split("=", 1)[1])
-                        elif line.startswith("#duration="):
-                            dur = float(line.split("=", 1)[1])
+                stub = tmantv.read_stub(path)
+                stub_start, dur = stub["start"], stub["duration"]
         except (OSError, ValueError):
             pass
         self._l.info(f"On Demand: {path} from {start:.0f}s")
