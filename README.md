@@ -6,6 +6,12 @@ Upstream's README (setup, configuration, scheduling) is still the main manual: [
 
 **Bring your own content.** The repo has code only: no media, catalogs, channel configs or show lists.
 
+| i-Guide channel | On Demand | On Demand: a show |
+|---|---|---|
+| ![i-Guide](docs/screenshots/iguide.jpg) | ![On Demand menu](docs/screenshots/ondemand-home.jpg) | ![On Demand show page](docs/screenshots/ondemand-show.jpg) |
+
+*Screenshots use demo listings, not a real lineup.*
+
 ## What's added
 
 - **Internet Archive streaming (`.strm` stubs).** A channel can play archive.org videos without downloading them. Each episode is a small text file with the stream URL, so the catalog, schedule, NFO guide text and play counts all work as with local files.
