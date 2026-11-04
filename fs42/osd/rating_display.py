@@ -99,11 +99,15 @@ class RatingDisplay:
         new_file = status.get("file_path")
         new_type = classify_current_content()
 
-        # Restart the display timer for a new program, channel, or rating.
-        if (
+        # Restart the display timer when a program starts or comes back from a break (new file or
+        # title on the same channel). A channel change only loads the new rating, with the timer
+        # already run out, so tuning in mid-show shows no bug (T-ManTV, 2026-11-04).
+        if new_network != self.network_name:
+            self.time_since_change = self.config.display_time
+            self.load_rating_image(new_rating)
+        elif (
             new_rating != self.rating
             or new_title != self.title
-            or new_network != self.network_name
             or new_file != self.file_path
         ):
             self.time_since_change = 0.0
