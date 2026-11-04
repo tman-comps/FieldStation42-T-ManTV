@@ -13,6 +13,7 @@ from fs42 import timings
 from fs42.liquid_blocks import LiquidBlock, LiquidClipBlock, LiquidOffAirBlock, LiquidLoopBlock, LiquidWebBlock
 from fs42.sequence_api import SequenceAPI
 from fs42.catalog_api import CatalogAPI
+from fs42.catalog_entry import CatalogEntry
 from fs42.liquid_api import LiquidAPI
 from fs42.marathon_agent import MarathonAgent
 from fs42.path_query import PathQuery
@@ -274,6 +275,17 @@ class LiquidSchedule:
         return (break_info, break_strategy, increment)
 
     @staticmethod
+    def _break_entries(block):
+        """Catalog entries (commercials and bumps) placed in a block's breaks.
+        Autobumps and other generated items aren't catalog entries and are skipped."""
+        entries = []
+        for reel in getattr(block, "reel_blocks", None) or []:
+            for item in [getattr(reel, "start_bump", None), *getattr(reel, "comms", []), getattr(reel, "end_bump", None)]:
+                if isinstance(item, CatalogEntry):
+                    entries.append(item)
+        return entries
+
+    @staticmethod
     def _get_block_tag(block):
         """Safely extract the content tag from a block, returning None for
         off-air (video or autobump), loop, or clip blocks where a single tag doesn't apply."""
@@ -528,6 +540,10 @@ class LiquidSchedule:
             if block.content:
                 # if the block has content, then we need to increment the play count
                 play_counts.append(block.content)
+            # T-ManTV: save commercial/bump play counts too, so the lowest-count pick
+            # keeps rotating through every ad across schedule runs instead of
+            # starting all ads back at zero each run
+            play_counts.extend(self._break_entries(block))
 
         self._l.debug("Plans completed - updating play counts")
         CatalogAPI.update_play_counts(self.conf, play_counts)
