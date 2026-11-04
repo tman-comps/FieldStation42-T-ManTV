@@ -245,6 +245,9 @@ class LiquidSchedule:
             break_info["start_bump"] = self.catalog.get_start_bump(slot_config["start_bump"])
         if "end_bump" in slot_config:
             break_info["end_bump"] = self.catalog.get_end_bump(slot_config["end_bump"])
+        # T-ManTV: "Up Next" card before every episode (absorbs stream-load lateness)
+        if "up_next" in self.conf and not break_info["start_bump"]:
+            break_info["start_bump"] = AutoBumpAgent.up_next_bump(self.conf)
 
         break_info["bump_dir"] = slot_config.get("bump_dir", self.conf.get("bump_dir", None))
         break_info["commercial_dir"] = slot_config.get("commercial_dir", self.conf.get("commercial_dir", None))

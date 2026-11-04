@@ -73,6 +73,25 @@ class AutoBumpAgent:
         return {"message_bump": msg_bump, "next_bump": next_bump}
 
     @staticmethod
+    def up_next_bump(station_config):
+        """T-ManTV: WeatherStar-style "Up Next" card that opens every block.
+        Lateness from stream loads eats into it, so episodes start from the top."""
+        up_conf = station_config["up_next"]
+        params = {"network": station_config["network_name"]}
+        if "channel_number" in station_config:
+            params["channel"] = station_config["channel_number"]
+        for key in ("header", "accent", "ticker", "music"):
+            if key in up_conf:
+                params[key] = up_conf[key]
+        qs = urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
+        url = f"{AutoBumpAgent.url_prefix}{AutoBumpAgent.static_url('upnext/upnext.html')}?{qs}"
+        return {"path": url, "duration": up_conf.get("duration", 20), "media_type": "video"}
+
+    @staticmethod
+    def is_up_next_url(url):
+        return AutoBumpAgent.is_autobump_url(url) and "/upnext/upnext.html" in url
+
+    @staticmethod
     def is_autobump_url(url):
         return url.startswith(AutoBumpAgent.url_prefix)
 

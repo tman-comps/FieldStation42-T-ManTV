@@ -1253,6 +1253,13 @@ class StationPlayer:
                     and getattr(play_point.plan[play_point.index], "content_type", "feature") not in ("commercial", "bump")):
                 self._l.info(f"Running {initial_skip:.1f}s late from the last block: starting from the top, ads will catch up")
                 initial_skip = 0
+            # T-ManTV: ran past this block's "Up Next" card: start the episode from the top, the next card catches up
+            elif (0 < initial_skip <= 90 and play_point.index > 0 and time.time() - getattr(self, "_fs42_block_done", 0) < 10
+                    and AutoBumpAgent.is_up_next_url(play_point.plan[play_point.index - 1].path)):
+                self._l.info(f"Running {initial_skip:.1f}s late, past the Up Next card: starting from the top")
+                initial_skip = 0
+            elif play_point.index == 0 and AutoBumpAgent.is_up_next_url(play_point.plan[0].path) and time.time() - getattr(self, "_fs42_block_done", 0) < 10:
+                self._l.info(f"Up Next card {play_point.plan[0].duration - initial_skip:.1f}s (late {initial_skip:.1f}s)")
 
             # iterate over the slice from index to end
             for entry in play_point.plan[play_point.index :]:

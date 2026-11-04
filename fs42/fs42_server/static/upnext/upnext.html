@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Up Next</title>
+<!-- T-ManTV: WeatherStar-style "Up Next" card shown between episodes on commercial-free channels.
+     Query: network, channel, header, accent, ticker, duration (ms, set by the player), music (0 = off).
+     fonts/ and music/ are copied from the WeatherStar app and are not in git. -->
+<style>
+@font-face { font-family: "Star4000"; src: url("fonts/Star4000.woff") format("woff"); }
+@font-face { font-family: "Star4000 Large"; src: url("fonts/Star4000-Large.woff") format("woff"); }
+@font-face { font-family: "Star4000 Extended"; src: url("fonts/Star4000-Extended.woff") format("woff"); }
+:root { --accent: #ff9a1a; --text: #ffffff; --hi: #ffff3a; --navy: #102060; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+body { font-family: "Star4000", monospace; color: var(--text); }
+/* CRT safe area, same margins as the 90s guide */
+.frame { position: absolute; left: 6vw; right: 6vw; top: 4vh; bottom: 4vh;
+  background: linear-gradient(to bottom, #1b0f63 0%, #2a3fa8 55%, #3156c8 100%);
+  display: flex; flex-direction: column; opacity: 0; transition: opacity .6s; }
+.frame.on { opacity: 1; }
+.shadow { text-shadow: .35vh .35vh 0 #000, -.1vh -.1vh 0 #000, .1vh -.1vh 0 #000, -.1vh .1vh 0 #000; }
+.header { height: 15vh; display: flex; align-items: center; padding: 0 3vw; position: relative;
+  background: linear-gradient(100deg, #1b0f63 0%, #1b0f63 38%, var(--accent) 62%, #ffd27a 100%);
+  border-bottom: .5vh solid #8fa6ff; }
+.header .title { font-family: "Star4000 Extended", "Star4000", monospace; font-size: 6.2vh; color: var(--hi); line-height: 1.05; }
+.header .title small { display: block; font-size: 3.6vh; color: #fff; }
+.header .clock { position: absolute; right: 3vw; top: 50%; transform: translateY(-50%); text-align: right;
+  font-size: 3.6vh; line-height: 1.25; }
+.body { flex: 1; padding: 3vh 4vw 0; overflow: hidden; }
+.label { font-family: "Star4000 Large", "Star4000", monospace; font-size: 4.4vh; color: var(--hi); margin-bottom: 1vh; }
+.show { font-family: "Star4000 Large", "Star4000", monospace; font-size: 7vh; line-height: 1.05; }
+.ep { font-size: 4.4vh; margin-top: .6vh; }
+.ep .name { color: var(--hi); }
+.plot { font-size: 3.5vh; line-height: 1.3; margin-top: 1.6vh; max-height: 9.2vh; overflow: hidden; }
+.later { margin-top: 3vh; border-top: .4vh solid #8fa6ff; padding-top: 1.6vh; }
+.row { display: flex; font-size: 3.8vh; line-height: 1.45; white-space: nowrap; }
+.row .t { width: 13vw; color: var(--hi); flex: none; }
+.row .n { overflow: hidden; text-overflow: ellipsis; }
+.ticker { height: 7vh; background: var(--navy); border-top: .5vh solid #8fa6ff; overflow: hidden; position: relative; }
+.ticker span { position: absolute; top: 50%; white-space: nowrap; font-size: 3.8vh; transform: translate(100vw, -50%); }
+/* lines slide in from the right one after another, like the WeatherStar pages */
+.in { opacity: 0; transform: translateX(8vw); transition: opacity .5s, transform .5s; }
+.in.on { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+<div class="frame" id="frame">
+  <div class="header">
+    <div class="title shadow" id="hdr">Up Next<small id="net"></small></div>
+    <div class="clock shadow" id="clock"></div>
+  </div>
+  <div class="body">
+    <div class="label shadow in">Up Next</div>
+    <div class="show shadow in" id="show"></div>
+    <div class="ep shadow in" id="ep"></div>
+    <div class="plot shadow in" id="plot"></div>
+    <div class="later" id="later"></div>
+  </div>
+  <div class="ticker"><span class="shadow" id="ticker"></span></div>
+</div>
+<audio id="music" preload="auto"></audio>
+<script src="../fs42_client.js"></script>
+<script src="../common.js"></script>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search);
+  const network = q.get("network") || "";
+  const durMs = parseInt(q.get("duration") || "30000", 10);
+  if (q.get("accent")) document.documentElement.style.setProperty("--accent", q.get("accent"));
+  document.getElementById("net").textContent = q.get("header") || network;
+
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function apiTime(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+  function clockTime(d) { return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" }); }
+  function shortTime(d) { return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); }
+  function tick() {
+    const d = new Date();
+    document.getElementById("clock").innerHTML = clockTime(d) + "<br>" +
+      d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase();
+  }
+  tick(); setInterval(tick, 1000);
+
+  // plot from the NFO, without the "S15E4 · Title (2003) – " prefix the guide uses
+  function cleanPlot(meta) {
+    let p = (meta && meta.plot) || "";
+    const dash = p.indexOf(" – ");
+    if (dash > -1 && dash < 80) p = p.slice(dash + 3);
+    return p;
+  }
+  function describe(block) {
+    const m = block.meta || {};
+    const show = m.show_title || m.title || block.title || "";
+    let ep = "";
+    if (m.type === "episode" && m.season != null && m.episode != null) {
+      ep = `Season ${m.season} &middot; Episode ${m.episode}`;
+      if (m.title && m.title !== show) ep += ` &middot; <span class="name">"${m.title}"</span>`;
+    } else if (m.year) {
+      ep = String(m.year);
+    }
+    const short = (m.type === "episode" && m.title && m.title !== show) ? `${show}: ${m.title}` : show;
+    return { show, ep, short, plot: cleanPlot(m) };
+  }
+
+  async function load() {
+    const now = new Date();
+    const blocks = await window.fs42Common.fetchSchedule(network,
+      apiTime(new Date(now - 6 * 3600e3)), apiTime(new Date(+now + 4 * 3600e3)), true);
+    // the card plays at the start of the block it introduces, so "up next" is the block we're in
+    const probe = new Date(+now + 2000);
+    let i = blocks.findIndex(b => new Date(b.start_time) <= probe && probe < new Date(b.end_time));
+    if (i < 0) i = blocks.findIndex(b => new Date(b.start_time) > now);
+    if (i < 0) return;
+    const cur = describe(blocks[i]);
+    document.getElementById("show").textContent = cur.show;
+    document.getElementById("ep").innerHTML = cur.ep;
+    document.getElementById("plot").textContent = cur.plot;
+    const later = blocks.slice(i + 1, i + 3);
+    if (later.length) {
+      let html = `<div class="label shadow in">Later</div>`;
+      for (const b of later) {
+        // the episode itself starts after this block's card
+        html += `<div class="row shadow in"><span class="t">${shortTime(new Date(b.start_time))}</span><span class="n"></span></div>`;
+      }
+      const el = document.getElementById("later");
+      el.innerHTML = html;
+      el.querySelectorAll(".n").forEach((n, k) => n.textContent = describe(later[k]).short);
+    }
+    document.getElementById("ticker").textContent =
+      q.get("ticker") || `You're watching ${network}${q.get("channel") ? " on channel " + q.get("channel") : ""}  •  T-MAN TV  •  Stay tuned!`;
+  }
+
+  function animateIn() {
+    document.getElementById("frame").classList.add("on");
+    document.querySelectorAll(".in").forEach((el, k) => setTimeout(() => el.classList.add("on"), 250 + k * 200));
+    const t = document.getElementById("ticker");
+    const w = t.offsetWidth, vw = window.innerWidth;
+    // scroll across once over the card's length (at least 7 s so it stays readable)
+    const secs = Math.max(7, durMs / 1000 - 1);
+    t.animate([{ transform: `translate(${vw}px, -50%)` }, { transform: `translate(${-w}px, -50%)` }],
+      { duration: secs * 1000, easing: "linear", fill: "forwards" });
+  }
+
+  function music() {
+    if (q.get("music") === "0") return;
+    const a = document.getElementById("music");
+    const n = 1 + Math.floor(Math.random() * 12);
+    a.src = `music/ws${pad(n)}.mp3`;
+    a.volume = 0;
+    a.addEventListener("loadedmetadata", () => {
+      // random point in the track so the cards don't always open the same way
+      if (a.duration > 60) a.currentTime = Math.random() * (a.duration - 60);
+      a.play().catch(() => {});
+    }, { once: true });
+    const fade = (to, ms) => { const from = a.volume, t0 = performance.now();
+      const step = () => { const k = Math.min(1, (performance.now() - t0) / ms); a.volume = from + (to - from) * k; if (k < 1) requestAnimationFrame(step); };
+      step(); };
+    fade(0.55, 1500);
+    if (durMs > 3000) setTimeout(() => fade(0, 1200), durMs - 1400);
+  }
+
+  load().catch(e => console.error("up next:", e)).finally(animateIn);
+  music();
+  if (durMs > 2000) setTimeout(() => document.getElementById("frame").classList.remove("on"), durMs - 700);
+})();
+</script>
+</body>
+</html>
