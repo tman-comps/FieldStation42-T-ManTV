@@ -1258,6 +1258,13 @@ class StationPlayer:
                     and AutoBumpAgent.is_up_next_url(play_point.plan[play_point.index - 1].path)):
                 self._l.info(f"Running {initial_skip:.1f}s late, past the Up Next card: starting from the top")
                 initial_skip = 0
+            # T-ManTV: commercial-free channels have no ads to catch up with, so a block that follows straight on
+            # starts from the top while it's a little late (~0.5 s per episode); channel changes rejoin the clock
+            elif (0 < initial_skip <= 120 and self.station_config and self.station_config.get("commercial_free")
+                    and time.time() - getattr(self, "_fs42_block_done", 0) < 10
+                    and getattr(play_point.plan[play_point.index], "content_type", "feature") not in ("commercial", "bump")):
+                self._l.info(f"Running {initial_skip:.1f}s late from the last block (commercial-free): starting from the top")
+                initial_skip = 0
             elif play_point.index == 0 and AutoBumpAgent.is_up_next_url(play_point.plan[0].path) and time.time() - getattr(self, "_fs42_block_done", 0) < 10:
                 self._l.info(f"Up Next card {play_point.plan[0].duration - initial_skip:.1f}s (late {initial_skip:.1f}s)")
 
