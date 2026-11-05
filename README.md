@@ -20,12 +20,26 @@ Upstream's README (setup, configuration, scheduling) is still the main manual: [
 
 *Screenshots are 720x480 (the CRT's size) and use demo listings, not a real lineup.*
 
+## Feature guides
+
+Each feature has its own page explaining how it works and how to set it up: **[docs/tmantv](docs/tmantv/README.md)**
+
+- [Setup](docs/tmantv/setup.md): fresh Pi install and what starts at boot
+- [Remote control](docs/tmantv/remote.md): USB/IR and phone remotes, every button
+- [i-Guide, reminders and the info banner](docs/tmantv/iguide-and-reminders.md)
+- [On Demand](docs/tmantv/ondemand.md)
+- [Internet Archive streaming](docs/tmantv/archive-streaming.md): `.strm` stubs, fast tuning, music beds
+- [On-screen extras](docs/tmantv/on-screen-extras.md): Up Next card, rating bug, CRT picture size
+- [Scheduling and ads](docs/tmantv/scheduling.md)
+- [Commands and troubleshooting](docs/tmantv/commands.md)
+
 Based on upstream FieldStation42 `main` as of 2026-10-24 (`daed3b9`). `tmantv` is the branch to use; `tmantv-update` is where new work lands first.
 
 ## What's added
 
 - **Internet Archive streaming (`.strm` stubs).** A channel can play archive.org videos without downloading them. Each episode is a small text file with the stream URL, so the catalog, schedule, NFO guide text and play counts all work as with local files.
 - **Fast archive.org tuning.** `fs42_local/archive_urls.py` caches the direct download links (no ~2 s redirect at every tune). `fs42-mkv-proxy` is a small local proxy that serves those files with a seek index, so channel changes take about 1 s.
+- **Music beds for streams**: a stub can play a long music track under its video (`#music=`, `#ambient=`), running on the clock like a radio station. See [Internet Archive streaming](docs/tmantv/archive-streaming.md#music-beds).
 - **Live volume leveling for streams.** Streams go through mpv `loudnorm` (-18 LUFS) so archive.org uploads match local files. Local files play without it.
 - **CRT-friendly picture.** mpv shrinks the picture a little during effects (overscan), keeps a stub's side-bar crop through channel-change static, and shows a big green channel number on tune.
 - **Boot and autostart** (`fs42_local/start_fs42.sh`): waits for the NAS while showing a standby splash, starts the player, and keeps the schedule filled (`keep_schedule.py`). Helpers in `pi/home/.local/bin`: `fs42-start`, `fs42-stop`, `fs42-restart`, `fs42-log`, and more.
@@ -76,7 +90,7 @@ http://127.0.0.1:8742/<item>/<file>.mp4
 | `#crop=` | mpv crop `w:h:x:y` to remove side or top bars (find it with ffmpeg `cropdetect`) |
 | `#aid=` | Audio track to play (for uploads with a commentary or second-language track) |
 
-A matching `.nfo` next to the stub gives the guide its title and plot. After adding or editing stubs, run `env/bin/python3 fs42_local/archive_urls.py` and `~/.local/bin/fs42-mkv-proxy fill catalog/<station>`.
+`#music=<bed>` and `#ambient=<0..1>` add a music bed ([details](docs/tmantv/archive-streaming.md#music-beds)). A matching `.nfo` next to the stub gives the guide its title and plot. After adding or editing stubs, run `env/bin/python3 fs42_local/archive_urls.py` and `~/.local/bin/fs42-mkv-proxy fill catalog/<station>`.
 
 ## Known limits
 
