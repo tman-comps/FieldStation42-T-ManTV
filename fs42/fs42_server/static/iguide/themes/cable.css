@@ -81,3 +81,4 @@
 #ws-banner .bar i { background: var(--c-yellow); }
 #ws-banner .next, #ws-banner .keys { color: var(--c-cyan); }
 #ws-banner .next b, #ws-banner .keys b { color: var(--c-yellow); font-weight: bold; }
+#video-panel.video-unavailable { background: var(--c-bg); }

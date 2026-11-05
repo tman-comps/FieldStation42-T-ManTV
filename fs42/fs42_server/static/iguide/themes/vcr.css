@@ -77,3 +77,6 @@
 #ws-banner .next b, #ws-banner .keys b { color: var(--v-green); }
 #ws-banner .desc { color: var(--v-dim); text-transform: none; }
 #selected-program-description { text-transform: none; }
+#video-panel.video-unavailable { background: #000870; }
+/* wide bold mono: a size down in the grid so short titles stay on one line */
+.grid-program-block .program-title, .grid-program-block.current .program-title { font-size: 17px; }

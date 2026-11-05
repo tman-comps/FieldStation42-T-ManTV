@@ -84,3 +84,4 @@
 #ws-banner .bar i { background: var(--m-accent); }
 #ws-banner .next, #ws-banner .keys, #ws-banner .desc { color: var(--m-dim); }
 #ws-banner .next b, #ws-banner .keys b { color: var(--m-text); font-weight: bold; }
+#video-panel.video-unavailable { background: var(--m-card2); }
