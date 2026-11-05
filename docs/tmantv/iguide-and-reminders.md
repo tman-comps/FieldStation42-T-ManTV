@@ -6,7 +6,7 @@
 
 ## The guide
 
-Press **Guide** and a WeatherStar-style i-Guide covers the screen, with the show you were watching still playing in the top-right box. It's the same mpv player shrunk into that box, not a second copy, so it opens instantly and nothing restarts.
+Press **Guide** and the i-Guide (WeatherStar look by default, see [Themes](#themes)) covers the screen, with the show you were watching still playing in the top-right box. It's the same mpv player shrunk into that box, not a second copy, so it opens instantly and nothing restarts.
 
 How it works: `guide_overlay.py` loads the guide page once at startup and keeps the window hidden. When you open it, it moves mpv's picture into the preview box (mpv video margins over `runtime/mpv.socket`) and cuts a hole in the window there with an X11 window shape. The hidden page reloads every 30 minutes so listings stay fresh.
 
@@ -20,6 +20,24 @@ The guide is based on the FieldStation42Expanded i-Guide. The T-ManTV look and t
 The skin is sized for a CRT over composite: four tall rows with big text, channel and show names on up to two lines, and the start time and plot in the info box. Music video channels show one row-wide **NOW PLAYING: Artist - Song (Year)** block from the music NFO, updated as each video starts.
 
 If `guide_overlay.py` isn't running, Guide falls back to tuning channel 2, the full-screen i-Guide channel.
+
+## Themes
+
+One setting changes the look of the guide, the info banner, the reminder pop-up and the Up Next card together. Layout, sizes and buttons stay the same.
+
+| `ws` (default) | `cable` | `modern` | `vcr` |
+|---|---|---|---|
+| ![WeatherStar](../screenshots/iguide.jpg) | ![90s cable box](../screenshots/theme-cable.png) | ![Modern dark](../screenshots/theme-modern.png) | ![VCR display](../screenshots/theme-vcr.png) |
+
+- `ws`: WeatherStar blue and gold, Star4000 font.
+- `cable`: late-90s digital cable box. Flat blue boxes with bevels, yellow highlight.
+- `modern`: clean dark look, nothing retro.
+- `vcr`: VCR on-screen display. Blue screen, block capitals, green labels.
+- `none`: the stock FS42 00s guide (no banner or reminders).
+
+To switch, run `fs42_local/guide-theme` to list them and `fs42_local/guide-theme cable` to pick one. It saves `fs42/fs42_server/static/iguide/skin.json` (not in git, so updates don't overwrite it) and restarts FieldStation42 so both the overlay and channel 2 reload. Add `--no-restart` to skip the restart. Without the file the guide uses `ws`. A `&skin=<name>` in a guide URL still wins over the file, so leave it out of `GUIDE_URL` and your guide channel's `web_url` if you want them to follow the setting. The brand text in the header, status bar and banner comes from the URL's `header=`.
+
+**Making your own:** copy `themes/cable.css` to `themes/<name>.css` (it imports `ws.css` and only changes colors, fonts and edges), copy `themes/cable-upnext.css` to `themes/<name>-upnext.css` for the Up Next card, and add the name to `TMAN_SKINS` in `iguide/tmantv_theme.js`. Check it without touching the TV: `env/bin/python3 fs42_local/guide_snapshot.py "http://127.0.0.1:4242/static/iguide/customguide.html?theme=00s&interactive=1&mock=1&skin=<name>" /tmp/guide.png`.
 
 ## Reminders
 
