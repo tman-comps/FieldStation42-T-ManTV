@@ -118,6 +118,10 @@
       }
       set('selected-program-description', split.summary);
     }
+    // Music: full "Band - Song (Year)" on up to 2 lines, no "more information" filler
+    const music = !!program.dataset.music;
+    document.getElementById('selected-program-title').classList.toggle('ws-wrap', music);
+    if (music) set('selected-program-description', '');
 
     const now = Date.now();
     const start = Number(program.dataset.startMs), end = Number(program.dataset.endMs);
@@ -221,6 +225,11 @@
       if (meta.season != null) el.dataset.season = meta.season;
       if (meta.episode != null) el.dataset.episode = meta.episode;
     }
+    if (el && meta && meta.type === 'music') {   // music video NFO: artist, title, year
+      el.dataset.music = '1';
+      el.dataset.song = [meta.artist, meta.title || el.dataset.title].filter(Boolean).join(' - ') +
+        (meta.year ? ` (${meta.year})` : '');
+    }
     if (el && el.dataset.startMs) {
       const t = document.createElement('span');
       t.className = 'ws-time';
@@ -274,9 +283,53 @@
     });
   };
 
+  // ---- Music channels (Tristan, 2026-11-05): one block "NOW PLAYING: Band - Song (Year)" across
+  // the row instead of a strip of tiny 4-minute blocks. The songs are kept so the 5 s tick can
+  // swap in the next one as it starts. A future window (Right) just says MUSIC VIDEOS.
+  function collapseMusic() {
+    document.querySelectorAll('#grid-scroll-strip .grid-row').forEach(row => {
+      const blocks = getProgramsForRow(row);
+      if (!blocks.length || !blocks.every(b => b.dataset.music)) return;
+      row.tmanSongs = blocks.map(b => ({ s: Number(b.dataset.startMs), e: Number(b.dataset.endMs), song: b.dataset.song }));
+      const keep = blocks[0];
+      blocks.slice(1).forEach(b => b.remove());
+      keep.style.left = '0%';
+      keep.style.width = 'calc(100% - 2px)';
+      keep.classList.add('ws-music');
+      keep.querySelector('.ws-time')?.remove();
+      updateMusicRow(row);
+    });
+  }
+  function updateMusicRow(row) {
+    const songs = row.tmanSongs, el = getProgramsForRow(row)[0];
+    if (!songs || !el) return;
+    const now = Date.now();
+    const cur = songs.find(x => x.s <= now && now < x.e);
+    const t = el.querySelector('.program-title');
+    if (cur) {
+      el.dataset.startMs = cur.s; el.dataset.endMs = cur.e; el.dataset.title = cur.song;
+      t.innerHTML = '<span class="ws-np">NOW PLAYING:</span> ';
+      t.appendChild(document.createTextNode(cur.song));
+    } else {
+      el.dataset.startMs = songs[0].s; el.dataset.endMs = songs[songs.length - 1].e; el.dataset.title = 'Music Videos';
+      t.textContent = 'Music Videos';
+    }
+    el.dataset.description = '';
+    el.classList.toggle('current', !!cur);
+  }
+  setInterval(() => {
+    document.querySelectorAll('#grid-scroll-strip .grid-row').forEach(row => {
+      if (!row.tmanSongs) return;
+      const before = getProgramsForRow(row)[0]?.dataset.title;
+      updateMusicRow(row);
+      if (getProgramsForRow(row)[0]?.dataset.title !== before && selected().row === row) updateSelectedProgramInfo();
+    });
+  }, 5000);
+
   const baseGrid = window.buildGrid;
   window.buildGrid = async function () {
     await baseGrid.apply(this, arguments);
+    collapseMusic();
     const count = document.querySelectorAll('#grid-scroll-strip .grid-row').length;
     const el = document.getElementById('ws-count');
     if (el) el.textContent = `${count} CHANNELS`;
