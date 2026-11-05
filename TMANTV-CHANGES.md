@@ -27,7 +27,7 @@ Where each change lives. For how to use each feature, see the [feature guides](d
 | Up Next card before each episode (channels with `up_next`); stream-load lateness eats into the card so episodes start from the top | `fs42/autobump_agent.py` `up_next_bump`, `fs42/liquid_schedule.py`, `station_player.py`; page `fs42/fs42_server/static/upnext/upnext.html` |
 | Commercial-free channels: a straight-on episode up to 120 s late starts from the top | `station_player.py` `play_slot` |
 | Commercial and bump play counts saved with each schedule run (least-played ads first across days) | `fs42/liquid_schedule.py`; test `test/test_break_play_counts.py` |
-| Guide themes: ws / cable / modern / vcr for guide, banner, reminder pop-up and Up Next card, set with `fs42_local/guide-theme` (`iguide/skin.json`) | `static/iguide/tmantv_theme.js`, `themes/<name>.css`, `themes/<name>-upnext.css`, `fs42_local/guide-theme` |
+| Guide themes: ws / cable / modern / vcr for guide, banner, reminder pop-up and Up Next card, and station name, set with `fs42_local/guide-theme` (`iguide/settings.json`) | `static/iguide/tmantv_theme.js`, `themes/<name>.css`, `themes/<name>-upnext.css`, `fs42_local/guide-theme` |
 | Channel-change info banner (WeatherStar bar, 4 s) | `fs42_local/guide_overlay.py`, `static/iguide/tmantv_skin.js` `tmanBanner` |
 | i-Guide Left/Right = 30 min per press, schedule windows cached and prefetched | `static/iguide/tmantv_skin.js` |
 | Reminders: OK on a future show sets/clears one (`runtime/reminders.json`); pop-up at start time, OK = watch, Back = dismiss | `fs42_local/guide_overlay.py`, `fs42_local/remote.py` `reminder_key`, `tmantv_skin.js` `tmanReminder`, `themes/ws.css` |

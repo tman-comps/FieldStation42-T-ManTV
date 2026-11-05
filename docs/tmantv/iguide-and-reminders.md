@@ -35,7 +35,11 @@ One setting changes the look of the guide, the info banner, the reminder pop-up 
 - `vcr`: VCR on-screen display. Blue screen, block capitals, green labels.
 - `none`: the stock FS42 00s guide (no banner or reminders).
 
-To switch, run `fs42_local/guide-theme` to list them and `fs42_local/guide-theme cable` to pick one. It saves `fs42/fs42_server/static/iguide/skin.json` (not in git, so updates don't overwrite it) and restarts FieldStation42 so both the overlay and channel 2 reload. Add `--no-restart` to skip the restart. Without the file the guide uses `ws`. A `&skin=<name>` in a guide URL still wins over the file, so leave it out of `GUIDE_URL` and your guide channel's `web_url` if you want them to follow the setting. The brand text in the header, status bar and banner comes from the URL's `header=`.
+To switch, run `fs42_local/guide-theme` to list them and `fs42_local/guide-theme cable` to pick one. It saves `fs42/fs42_server/static/iguide/settings.json` (not in git, so updates don't overwrite it) and restarts FieldStation42 so both the overlay and channel 2 reload. Add `--no-restart` to skip the restart. Without the file the guide uses `ws`.
+
+**Station name:** `fs42_local/guide-theme brand "My TV"` sets the name shown in the guide header, status bar, info banner and the Up Next ticker (default `FieldStation42`). Plain `fs42_local/guide-theme` shows the current one.
+
+A `&skin=` or `&header=` in a guide URL still wins over the file, so leave them out of `GUIDE_URL` and your guide channel's `web_url` if you want them to follow the setting.
 
 **Making your own:** copy `themes/cable.css` to `themes/<name>.css` (it imports `ws.css` and only changes colors, fonts and edges), copy `themes/cable-upnext.css` to `themes/<name>-upnext.css` for the Up Next card, and add the name to `TMAN_SKINS` in `iguide/tmantv_theme.js`. Check it without touching the TV: `env/bin/python3 fs42_local/guide_snapshot.py "http://127.0.0.1:4242/static/iguide/customguide.html?theme=00s&interactive=1&mock=1&skin=<name>" /tmp/guide.png`.
 
