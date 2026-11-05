@@ -260,6 +260,21 @@
     await shiftInteractiveWindow(direction, Math.max(slots[0].start.getTime(), Date.now()));
   };
 
+  // ---- Up/Down land on what's live (Tristan, 2026-11-05) ----
+  // Stock aimed at the selected show's start time, so a show that started earlier on the next
+  // row (e.g. 10:05-10:35 vs a 10:30 start) won even though it was nearly over. Never aim
+  // before now; a future show (after Right) still keeps its start time.
+  window.moveInteractiveVertical = function (direction) {
+    const rows = getInteractiveRows();
+    if (!rows.length) return;
+    const program = getProgramsForRow(rows[interactiveRowIndex])[interactiveProgramIndex];
+    if (!program) return;
+    const left = computeSlotTimes(INTERACTIVE ? interactiveSlotOffset : 0)[0].start.getTime();
+    const start = Number(program.dataset.startMs);
+    selectInteractiveRow(interactiveRowIndex + direction,
+      Math.max(Number.isFinite(start) ? start : left, left, Date.now()));
+  };
+
   // ---- Reminders (2026-11-04): OK on a future show in the overlay guide, kept by guide_overlay.py ----
   window.tmanReminders = [];
   function markReminders() {
