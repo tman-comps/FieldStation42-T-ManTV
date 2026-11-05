@@ -33,6 +33,10 @@ KEYS = {"ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown",
 MARGINS = ("left", "right", "top", "bottom")
 BANNER_SECS = 4           # channel-change info banner stays up this long (Tristan, 2026-11-02)
 BANNER_WAIT = 5           # give up if the channel hasn't changed this long after the button
+REMINDERS = os.path.join(FS42, "runtime/reminders.json")   # OK on a future show in the guide (2026-11-04)
+REMINDER_SECS = 60        # reminder pop-up stays up this long unless OK/Back
+REMINDER_LATE = 10 * 60   # still pop up this long after the start (guide/On Demand menu was open)
+REMINDER_AHEAD = 30       # OK on a show starting within this many seconds tunes instead
 OD_URL = API + "/static/ondemand/ondemand.html"
 OD_KEYS = KEYS | {"Escape"}
 OD_IDLE_CLOSE = 5 * 60    # On Demand menu closes itself after this long without a press
@@ -148,6 +152,12 @@ class Overlay(QMainWindow):
         self.banner_timer = QTimer(self)
         self.banner_timer.setSingleShot(True)
         self.banner_timer.timeout.connect(self.hide_banner)
+        self.reminder = None      # the reminder pop-up on screen now
+        try:
+            with open(REMINDERS) as f:
+                self.reminders = json.load(f)
+        except (OSError, ValueError):
+            self.reminders = []
 
         # Always above mpv and FS42's web window; the window manager never touches it.
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
@@ -186,6 +196,9 @@ class Overlay(QMainWindow):
         self.reloader = QTimer(self)
         self.reloader.timeout.connect(self.reload_if_closed)
         self.reloader.start(RELOAD_EVERY * 1000)
+        self.reminder_check = QTimer(self)
+        self.reminder_check.timeout.connect(self.check_reminders)
+        self.reminder_check.start(5000)
         self.load()
         self.od_view.load(QUrl(OD_URL))
 
@@ -204,6 +217,8 @@ class Overlay(QMainWindow):
         log(f"guide page loaded: {ok}")
         if not ok:   # FS42's web server may not be up yet at boot
             QTimer.singleShot(5000, self.load)
+        else:
+            self.push_reminders()
 
     def reload_if_closed(self):
         if not self.is_open and not self.banner_on:
@@ -236,6 +251,9 @@ class Overlay(QMainWindow):
             self.key(arg)
         elif action == "banner":
             self.show_banner(arg)
+        elif action == "reminder_dismiss":
+            if self.reminder:
+                self.hide_banner()
         elif action == "eval":   # debugging: run JS in the page, result goes to the log
             self.view.page().runJavaScript(arg, 0, lambda r: log(f"eval -> {r!r}"))
 
@@ -325,16 +343,17 @@ class Overlay(QMainWindow):
         # masked to just the bar, so the show stays full screen around it.
         if self.is_open or self.od_menu or not self.load_ok:
             return
+        self.reminder = None   # a tune replaces the reminder pop-up
         self.view.page().runJavaScript(f"tmanBanner({status_json})", 0, self.place_banner)
 
-    def place_banner(self, rect):
+    def place_banner(self, rect, secs=BANNER_SECS):
         if self.is_open or self.od_menu or not rect:
             return
         x, y, w, h = (round(v) for v in json.loads(rect))
         self.stack.setCurrentWidget(self.view)
         self.setMask(QRegion(x - 1, y - 1, w + 2, h + 2))   # + the 1px outer outline
         self.banner_on = True
-        self.banner_timer.start(BANNER_SECS * 1000)
+        self.banner_timer.start(secs * 1000)
         QTimer.singleShot(60, self.raise_banner)   # let the page paint the new text first
 
     def raise_banner(self):
@@ -343,6 +362,7 @@ class Overlay(QMainWindow):
             self.raise_()
 
     def hide_banner(self):
+        self.reminder = None
         if not self.banner_on:
             return
         self.banner_on = False
@@ -356,13 +376,16 @@ class Overlay(QMainWindow):
             return
         self.last_input = time.time()
         if name == "Enter":   # OK on the channel already playing just closes the guide
-            self.view.page().runJavaScript(
-                "String((getInteractiveRows()[interactiveRowIndex] || {dataset: {}}).dataset.channelNumber)",
-                0, self.enter)
+            self.view.page().runJavaScript("tmanSelectedInfo()", 0, self.enter)
             return
         self.send_key(name)
 
-    def enter(self, selected):
+    def enter(self, info_json):
+        info = json.loads(info_json or "{}")
+        if info.get("start", 0) > (time.time() + REMINDER_AHEAD) * 1000:   # a future show: reminder on/off
+            self.toggle_reminder(info)
+            return
+        selected = str(info.get("ch"))
         if str(player_status().get("channel_number")) == selected:
             log(f"OK on ch {selected}, already playing")
             self.close_guide()
@@ -376,6 +399,55 @@ class Overlay(QMainWindow):
             " {key: '%s', code: '%s', bubbles: true, cancelable: true}));" % (name, name), 0, lambda r: None)
         if name == "Enter":   # the page tunes the highlighted channel; get out of the way
             QTimer.singleShot(250, self.close_guide)
+
+    # ---------- reminders ----------
+    def save_reminders(self):
+        tmp = REMINDERS + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(self.reminders, f)
+        os.replace(tmp, REMINDERS)
+
+    def push_reminders(self, msg=""):
+        self.view.page().runJavaScript(
+            f"tmanSetReminders({json.dumps(self.reminders)}, {json.dumps(msg)})", 0, lambda r: None)
+
+    def toggle_reminder(self, info):
+        key = (str(info["ch"]), int(info["start"]))
+        kept = [r for r in self.reminders if (str(r["ch"]), r["start"]) != key]
+        if len(kept) < len(self.reminders):
+            self.reminders, msg = kept, "REMINDER OFF"
+        else:
+            self.reminders.append({k: info.get(k) for k in ("ch", "net", "start", "end", "title")})
+            msg = "REMINDER SET"
+        log(f"{msg.lower()}: ch {info['ch']} {info.get('title')} at {time.strftime('%H:%M', time.localtime(info['start'] / 1000))}")
+        self.save_reminders()
+        self.push_reminders(msg)
+
+    def check_reminders(self):
+        now = time.time() * 1000
+        due = sorted((r for r in self.reminders if r["start"] <= now), key=lambda r: r["start"])
+        # Wait while the guide, the On Demand menu or another reminder is up
+        if not due or self.is_open or self.od_menu or self.reminder or not self.load_ok:
+            return
+        r = due[0]
+        self.reminders.remove(r)
+        self.save_reminders()
+        self.push_reminders()
+        on = str(player_status().get("channel_number"))
+        if now - r["start"] > REMINDER_LATE * 1000:
+            log(f"reminder too late, dropped: ch {r['ch']} {r.get('title')}")
+        elif on == str(r["ch"]):
+            log(f"reminder: already on ch {on}")
+        else:
+            log(f"reminder up: ch {r['ch']} {r.get('title')}")
+            self.hide_banner()
+            self.reminder = r
+            self.view.page().runJavaScript(f"tmanReminder({json.dumps(r)})", 0, self.place_reminder)
+
+    def place_reminder(self, rect):
+        self.place_banner(rect, REMINDER_SECS)
+        if not self.banner_on:   # the guide opened in the meantime
+            self.reminder = None
 
     # ---------- On Demand ----------
     def od_js(self, js):
@@ -504,8 +576,14 @@ def serve(bridge, overlay):
                 # /banner = what's on now (Info); /banner/<ch> = after a tune away from <ch>
                 threading.Thread(target=banner_when_tuned, args=(bridge, overlay, arg), daemon=True).start()
                 body = {"ok": True}
+            elif action == "reminder":   # /reminder/dismiss (remote.py tunes itself for OK)
+                bridge.request.emit("reminder_dismiss", "")
+                body = {"ok": True}
+            elif action == "reminders":
+                body = overlay.reminders
             elif action == "status":
                 body = {"open": overlay.is_open, "loaded": overlay.load_ok, "banner": overlay.banner_on,
+                        "reminder": overlay.reminder and str(overlay.reminder["ch"]),
                         "od": overlay.od_menu or ("playing" if overlay.od_playing else ""),
                         "od_loaded": overlay.od_load_ok}
             else:

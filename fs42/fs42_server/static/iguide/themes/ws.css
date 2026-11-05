@@ -222,3 +222,15 @@ body.ws-banner-on #ws-banner { display: flex; }
 #ws-banner .code, #selected-program-title .ws-code { font-family: "Star4000"; font-size: 15px;
   color: var(--ws-yellow); margin-left: 10px; }
 .ws-chline > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* Reminders (2026-11-04): reminded shows in the grid, and the reminder pop-up (the info banner
+   + REMINDER and the OK/Back keys instead of NEXT). */
+.grid-program-block.ws-remind .ws-time { color: var(--ws-yellow); }
+.grid-program-block.ws-remind .ws-time::after { content: " REMIND"; }
+#ws-banner .rem, #ws-banner .keys { display: none; }
+body.ws-reminder #ws-banner .rem { display: block; align-self: center; margin-left: 10px; font-family: "Star4000 Extended";
+  font-size: 14px; letter-spacing: 1px; color: var(--ws-yellow); }
+body.ws-reminder #ws-banner .keys { display: block; font-size: 14px; color: var(--ws-lavender); white-space: nowrap; }
+body.ws-reminder #ws-banner .keys b { font-family: "Star4000 Large"; font-weight: normal; font-size: 12px;
+  color: var(--ws-yellow); margin: 0 5px 0 8px; }
+body.ws-reminder #ws-banner .next { display: none; }

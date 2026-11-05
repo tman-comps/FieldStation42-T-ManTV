@@ -149,12 +149,12 @@
     b.innerHTML = `
       <div class="top">
         <div class="tab"><span class="num" id="wsb-num"></span><span class="net" id="wsb-net"></span></div>
-        <span class="show" id="wsb-show"></span>
+        <span class="rem">REMINDER</span><span class="show" id="wsb-show"></span>
         <div class="spacer"></div><span class="brand">T-ManTV</span><span class="clock" id="wsb-clock"></span>
       </div>
       <div class="body">
         <div class="title"><span id="wsb-title"></span><span class="code" id="wsb-code"></span></div>
-        <div class="when" id="wsb-when"><span class="time" id="wsb-time"></span><span class="bar"><i id="wsb-fill"></i></span><span class="next" id="wsb-next"><b>NEXT</b><span id="wsb-next-title"></span></span></div>
+        <div class="when" id="wsb-when"><span class="time" id="wsb-time"></span><span class="bar"><i id="wsb-fill"></i></span><span class="next" id="wsb-next"><b>NEXT</b><span id="wsb-next-title"></span></span><span class="keys"><b>OK</b>WATCH <b>BACK</b>DISMISS</span></div>
         <div class="desc" id="wsb-desc"></div>
       </div>`;
     document.body.appendChild(b);
@@ -194,11 +194,12 @@
     hide('wsb-next', !next);
     if (next) set('wsb-next-title', next.dataset.title || '');
     set('wsb-desc', split ? split.summary : ((prog && prog.dataset.description) || ''));
+    document.body.classList.remove('ws-reminder');
     document.body.classList.add('ws-banner-on');
     const r = b.getBoundingClientRect();
     return JSON.stringify([r.left, r.top, r.width, r.height]);
   };
-  window.tmanBannerHide = function () { document.body.classList.remove('ws-banner-on'); };
+  window.tmanBannerHide = function () { document.body.classList.remove('ws-banner-on', 'ws-reminder'); };
 
   const baseBuildDOM = window.buildGridDOM;
   window.buildGridDOM = function () { baseBuildDOM(); decorate(); };
@@ -229,12 +230,66 @@
     return el;
   };
 
+  // ---- Left/Right move the time 30 min per press (Tristan, 2026-11-04) ----
+  // Stock walked show by show and only scrolled after the last show in the window, so presses
+  // seemed to do nothing. Windows are cached and the next one fetched ahead (~1.5 s per fetch).
+  const baseFetch = window.fetchAllSchedules;
+  const fetched = new Map();
+  window.fetchAllSchedules = function (slots, includeMeta) {
+    const key = `${slots[0].start.getTime()}|${!!includeMeta}`;
+    const hit = fetched.get(key);
+    if (hit && Date.now() - hit.t < 10 * 60 * 1000) return hit.p;
+    const p = baseFetch(slots, includeMeta);
+    fetched.set(key, { t: Date.now(), p });
+    p.then(r => { if (!r || !Object.keys(r).length) fetched.delete(key); });
+    return p;
+  };
+  const prefetch = offset => { if (!MOCK && offset >= 0) fetchAllSchedules(computeSlotTimes(offset), USE_META); };
+
+  window.moveInteractiveHorizontal = async function (direction) {
+    const slots = computeSlotTimes(interactiveSlotOffset + direction);
+    await shiftInteractiveWindow(direction, Math.max(slots[0].start.getTime(), Date.now()));
+  };
+
+  // ---- Reminders (2026-11-04): OK on a future show in the overlay guide, kept by guide_overlay.py ----
+  window.tmanReminders = [];
+  function markReminders() {
+    document.querySelectorAll('#grid-scroll-strip .grid-row').forEach(row => {
+      getProgramsForRow(row).forEach(p => p.classList.toggle('ws-remind', window.tmanReminders.some(r =>
+        String(r.ch) === row.dataset.channelNumber && r.start === Number(p.dataset.startMs))));
+    });
+  }
+  window.tmanSetReminders = function (list, msg) {
+    window.tmanReminders = list || [];
+    markReminders();
+    if (msg) showGuideToast(msg);
+  };
+  window.tmanSelectedInfo = function () {
+    const { row, program } = selected();
+    if (!row) return '{}';
+    return JSON.stringify({
+      ch: row.dataset.channelNumber, net: row.dataset.channelName || '',
+      start: program ? Number(program.dataset.startMs) : 0, end: program ? Number(program.dataset.endMs) : 0,
+      title: (program && program.dataset.title) || '',
+    });
+  };
+
   const baseGrid = window.buildGrid;
   window.buildGrid = async function () {
     await baseGrid.apply(this, arguments);
     const count = document.querySelectorAll('#grid-scroll-strip .grid-row').length;
     const el = document.getElementById('ws-count');
     if (el) el.textContent = `${count} CHANNELS`;
+    markReminders();
+    if (INTERACTIVE) prefetch(interactiveSlotOffset + 1);
+  };
+
+  // Reminder pop-up: the info banner for what's on rem.ch now, plus REMINDER and the OK/Back keys.
+  window.tmanReminder = function (rem) {
+    const rect = window.tmanBanner({ channel_number: rem.ch, network_name: rem.net, title: rem.title });
+    document.getElementById('wsb-clock').textContent = timeText(new Date());
+    document.body.classList.add('ws-reminder');
+    return rect;
   };
 
   const baseInfo = window.updateSelectedProgramInfo;

@@ -238,8 +238,26 @@ class Remote:
         overlay(f"/ondemand/key/{name}")
         return True
 
+    def reminder_key(self, keyname):
+        # Reminder pop-up up (guide_overlay.py): OK tunes to that show, Back dismisses it.
+        # Everything else works as normal (a channel change replaces the pop-up).
+        if self.digits or not (GUIDE_KEYS.get(keyname) == "Enter" or keyname in BACK_KEYS):
+            return False
+        status = overlay("/status")
+        ch = status.get("reminder") if status else None
+        if not ch or status.get("open"):
+            return False
+        overlay("/reminder/dismiss")
+        if keyname in BACK_KEYS:
+            log("reminder dismissed")
+        else:
+            log(f"reminder: watch ch {ch}")
+            self.tune(int(ch))
+        return True
+
     def key(self, keyname):
-        if self.overlay_key(keyname) or self.ondemand_key(keyname) or self.guide_key(keyname):
+        if (self.reminder_key(keyname) or self.overlay_key(keyname) or self.ondemand_key(keyname)
+                or self.guide_key(keyname)):
             return
         if keyname in DIGITS:
             self.digit(DIGITS[keyname])
