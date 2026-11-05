@@ -1400,11 +1400,11 @@ function startTextCarousel() {
 // ===== INIT =====
 
 async function init() {
-  // T-ManTV: the skin (?skin= or skin.json, tmantv_theme.js) loads themes/<skin>.css instead
-  // of 00s.css (layout stays 00s) and installs tmantv_skin.js
+  // T-ManTV: the skin (?skin= or settings.json, tmantv_theme.js) loads themes/<skin>.css instead
+  // of 00s.css (layout stays 00s) and installs tmantv_skin.js with the station name
   const skin = THEME === '00s' && window.tmanResolveSkin ? await window.tmanResolveSkin() : '';
   await loadTheme(skin || THEME);
-  if (skin) window.tmanSkinInstall(skin);
+  if (skin) window.tmanSkinInstall(skin, await window.tmanBrand());
 
   const headerPos = getCSSVar('--header-position').replace(/["']/g, '');
   if (headerPos === 'bottom') document.getElementById('guide-wrapper').classList.add('header-bottom');

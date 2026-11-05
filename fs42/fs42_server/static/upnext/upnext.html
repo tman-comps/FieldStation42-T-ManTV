@@ -136,8 +136,10 @@ window.tmanResolveSkin().then(skin => {
       el.innerHTML = html;
       el.querySelectorAll(".n").forEach((n, k) => n.textContent = describe(later[k]).short);
     }
+    // station name from iguide/settings.json (here header= is the network line, not the brand)
+    const brand = String((await window.tmanSettings()).brand || "").trim() || window.TMAN_DEFAULT_BRAND;
     document.getElementById("ticker").textContent =
-      q.get("ticker") || `You're watching ${network}${q.get("channel") ? " on channel " + q.get("channel") : ""}  •  T-MAN TV  •  Stay tuned!`;
+      q.get("ticker") || `You're watching ${network}${q.get("channel") ? " on channel " + q.get("channel") : ""}  •  ${brand.toUpperCase()}  •  Stay tuned!`;
   }
 
   function animateIn() {

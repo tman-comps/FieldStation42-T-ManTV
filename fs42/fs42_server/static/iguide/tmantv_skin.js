@@ -5,9 +5,8 @@
 // progress bar, UP NEXT), start times under each show, time labels, the status bar, the
 // channel-change banner and reminders. The ws-* ids/classes are shared by every theme;
 // themes/<skin>.css styles them.
-window.tmanSkinInstall = function (skin) {
+window.tmanSkinInstall = function (skin, brand) {
   document.body.classList.add(`skin-${skin}`);
-  const brand = (typeof HEADER_TEXT === 'string' && HEADER_TEXT) || 'T-ManTV';
   const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const pad = n => String(n).padStart(2, '0');

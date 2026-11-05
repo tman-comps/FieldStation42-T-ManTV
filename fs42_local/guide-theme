@@ -1,34 +1,59 @@
 #!/bin/bash
-# Pick the look of the guide, channel banner, reminder pop-up and Up Next card.
-#   fs42_local/guide-theme           list the themes (* = in use)
-#   fs42_local/guide-theme cable     switch, then restart FieldStation42 so both guides reload
-# Writes fs42/fs42_server/static/iguide/skin.json (not in git). Themes: iguide/tmantv_theme.js.
+# Pick the look and station name of the guide, channel banner, reminder pop-up and Up Next card.
+#   fs42_local/guide-theme                  list the themes (* = in use) and the station name
+#   fs42_local/guide-theme cable            switch theme
+#   fs42_local/guide-theme brand "My TV"    set the station name
+# Then FieldStation42 restarts so both guides reload (add --no-restart to skip).
+# Writes fs42/fs42_server/static/iguide/settings.json (not in git). Themes: iguide/tmantv_theme.js.
 cd "$(dirname "$0")/.." || exit 1
 IG=fs42/fs42_server/static/iguide
-SETTING=$IG/skin.json
-cur=$(grep -o '"skin": *"[^"]*"' "$SETTING" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
-cur=${cur:-ws}
+SETTING=$IG/settings.json
+[ -f "$SETTING" ] || { [ -f "$IG/skin.json" ] && mv "$IG/skin.json" "$SETTING"; }   # old name (2026-11-05)
+
+get() { grep -o "\"$1\": *\"\([^\"\\\\]\|\\\\.\)*\"" "$SETTING" 2>/dev/null | sed "s/^\"$1\": *\"//; s/\"$//; s/\\\\\(.\)/\1/g"; }
+skin=$(get skin); skin=${skin:-ws}
+brand=$(get brand)
 # names + descriptions straight from the TMAN_SKINS list in tmantv_theme.js
 themes=$(sed -n "/TMAN_SKINS = {/,/};/s/^ *\([a-z0-9_]*\): '\(.*\)',$/\1|\2/p" "$IG/tmantv_theme.js")
+
+args=(); restart=1
+for a in "$@"; do [ "$a" = "--no-restart" ] && restart=0 || args+=("$a"); done
+set -- "${args[@]}"
 
 if [ -z "$1" ]; then
   echo "Guide themes:"
   while IFS='|' read -r n d; do
-    [ "$n" = "$cur" ] && m='*' || m=' '
+    [ "$n" = "$skin" ] && m='*' || m=' '
     printf ' %s %-7s %s\n' "$m" "$n" "$d"
   done <<< "$themes"
-  printf '   %-7s %s\n' none 'stock FS42 look (no banner/reminders)'
-  echo "Switch: $0 <name>"
+  [ "$skin" = none ] && m='*' || m=' '
+  printf ' %s %-7s %s\n' "$m" none 'stock FS42 look (no banner/reminders)'
+  echo "Station name: ${brand:-FieldStation42 (default)}"
+  echo "Switch: $0 <theme>    Name: $0 brand \"My TV\""
   exit 0
 fi
 
-name=$(echo "$1" | tr 'A-Z' 'a-z')
-if [ "$name" != none ] && ! grep -q "^$name|" <<< "$themes"; then
-  echo "Unknown theme '$1'. Run $0 to list them."; exit 1
+if [ "$1" = brand ]; then
+  brand=$2
+  [ -n "$brand" ] || { echo "Usage: $0 brand \"My TV\""; exit 1; }
+  echo "Station name: $brand"
+else
+  name=$(echo "$1" | tr 'A-Z' 'a-z')
+  if [ "$name" != none ] && ! grep -q "^$name|" <<< "$themes"; then
+    echo "Unknown theme '$1'. Run $0 to list them."; exit 1
+  fi
+  skin=$name
+  echo "Guide theme: $skin"
 fi
-printf '{"skin": "%s"}\n' "$name" > "$SETTING"
-echo "Guide theme: $name"
-if [ "$2" = "--no-restart" ]; then
+
+json() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+if [ -n "$brand" ]; then
+  printf '{"skin": "%s", "brand": "%s"}\n' "$skin" "$(json "$brand")" > "$SETTING"
+else
+  printf '{"skin": "%s"}\n' "$skin" > "$SETTING"
+fi
+
+if [ $restart = 0 ]; then
   echo "Not restarted; the guide picks it up on the next FieldStation42 restart."
 elif [ -x "$HOME/.local/bin/fs42-restart-all" ]; then
   "$HOME/.local/bin/fs42-restart-all" >/dev/null 2>&1 && echo "FieldStation42 restarted."

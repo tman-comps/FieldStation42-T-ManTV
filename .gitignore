@@ -200,5 +200,6 @@ node_modules/
 fs42/fs42_server/static/upnext/music/
 fs42/fs42_server/static/upnext/fonts/
 
-# T-ManTV guide theme setting (fs42_local/guide-theme)
+# T-ManTV guide theme + station name (fs42_local/guide-theme)
+fs42/fs42_server/static/iguide/settings.json
 fs42/fs42_server/static/iguide/skin.json
