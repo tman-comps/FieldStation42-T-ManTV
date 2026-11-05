@@ -619,6 +619,11 @@ class StationPlayer:
                     if stub["target"]:
                         file_path = stub["target"]
                     offset_seconds = (offset_seconds or 0) + stub["start"]
+                # FS42 local: music bed from the stub (#music= / #ambient=), mixed in this mpv
+                _fs42_music = tmantv.music_setup(stub, offset_seconds, file_duration, time.time()) if stub else None
+                tmantv.set_music(self.mpv, _fs42_music)
+                if _fs42_music:
+                    _fs42_aid = "auto"  # the mix (or music_track below) picks the audio
                 self._l.info(f"playing {file_path}")
                 _fs42_fallback = None  # FS42 local: use the cached direct archive.org server link
                 if file_path.startswith("lavf://"):
@@ -655,6 +660,8 @@ class StationPlayer:
                         if self.mpv.time_pos is not None:
                             if _fs42_aid != "auto":  # FS42 local: stub audio track, now that the new file plays
                                 self.mpv.aid = _fs42_aid
+                            if _fs42_music and not _fs42_music[1]:  # FS42 local: #ambient=0 -> music only
+                                tmantv.music_track(self.mpv)
                             break
                         if _fs42_proxy_fb and time.time() - start_time > 1.5 and self.mpv.idle_active:
                             # FS42 local: proxy link failed to start -> retry once from archive.org
@@ -798,6 +805,7 @@ class StationPlayer:
     def play_and_wait(self, file_path):
         self._l.info(f"Play and wait on file {file_path}")
         self.mpv.aid = "auto"  # FS42 local: no stub audio track (#aid) carried over
+        tmantv.set_music(self.mpv, None)  # FS42 local: no music bed carried over
         self._close_now_playing()
         self.mpv.vf = ""
         if self._active_afx:
@@ -836,6 +844,7 @@ class StationPlayer:
 
     def play_file_list(self, file_list):
         self.mpv.aid = "auto"  # FS42 local: no stub audio track (#aid) carried over
+        tmantv.set_music(self.mpv, None)  # FS42 local: no music bed carried over
 
         try:
             # Filter out any files that don't exist

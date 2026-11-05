@@ -99,8 +99,11 @@ def read_stub(path):
     #   #duration=N      -> length in seconds (after the #start trim)
     #   #crop=w:h:x:y    -> mpv crop for side bars
     #   #aid=N           -> audio track
+    #   #music=<bed>     -> mix music bed runtime/beds/<bed>.* under the file (see music_setup)
+    #   #ambient=L       -> the file's own sound under the music, 0..1 (default 0.15; 0 = music only)
     # target stays None when the stub has no URL/path line.
-    stub = {"target": None, "start": 0.0, "duration": None, "crop": "", "aid": "auto"}
+    stub = {"target": None, "start": 0.0, "duration": None, "crop": "", "aid": "auto",
+            "music": None, "ambient": 0.15}
     with open_stub(path) as f:
         for line in f:
             if line.startswith("http"):
@@ -118,7 +121,97 @@ def read_stub(path):
                 stub["crop"] = "crop=" + line.split("=", 1)[1].strip()
             elif line.startswith("#aid="):
                 stub["aid"] = line.split("=", 1)[1].strip()
+            elif line.startswith("#music="):
+                stub["music"] = line.split("=", 1)[1].strip() or None
+            elif line.startswith("#ambient="):
+                try:
+                    stub["ambient"] = max(0.0, min(1.0, float(line.split("=", 1)[1])))
+                except ValueError:
+                    pass
     return stub
+
+
+# --- Music beds (#music=): one long leveled audio file per bed, mixed in the same mpv ---
+
+BEDS_DIR = "runtime/beds"  # <bed>.<ext> files + beds.json {"<bed>": {"file": "<bed>.opus", "length": seconds}}
+_beds = {"mtime": None, "map": {}}
+
+
+def _bed(name):
+    try:
+        f = os.path.join(BEDS_DIR, "beds.json")
+        m = os.path.getmtime(f)
+        if m != _beds["mtime"]:
+            with open(f) as fh:
+                _beds["map"] = json.load(fh)
+            _beds["mtime"] = m
+        b = _beds["map"].get(name)
+        if b and b.get("length", 0) > 0:
+            return os.path.abspath(os.path.join(BEDS_DIR, b["file"])), float(b["length"])
+    except Exception:
+        pass
+    return None
+
+
+def music_setup(stub, offset, duration, now):
+    # (edl_path, lavfi-complex graph) for the stub's music bed, or None.
+    # The bed plays like a radio station: at file time `offset` it is at (now mod length).
+    # mpv puts an external track on the main file's timeline, so an EDL starts the bed
+    # mid-file and loops it for as long as the file runs (no seeking of its own needed).
+    bed = _bed(stub["music"]) if stub and stub["music"] else None
+    if not bed:
+        return None
+    path, length = bed
+    offset = offset or 0.0
+    need = offset + (duration or 4 * 3600) + 60  # EDL covers the whole file, a little past its end
+    first = (now - offset) % length
+    lines = ["# mpv EDL v0", f"%{len(path.encode())}%{path},{first:.3f},{length - first:.3f}"]
+    total = length - first
+    while total < need:
+        lines.append(f"%{len(path.encode())}%{path},0,{length:.3f}")
+        total += length
+    edl = os.path.abspath(os.path.join(BEDS_DIR, "now_playing.edl"))
+    with open(edl, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    # Mix: the file's own track (aid1, or #aid) turned down + the bed (aid2: assumes the file
+    # has one audio track). #ambient=0 -> no graph, music_track() picks the bed after load,
+    # which also works for files with no sound at all.
+    own = stub["aid"] if stub["aid"] not in ("auto", "", None) else "1"
+    if stub["ambient"] > 0:
+        graph = (f"[aid{own}]volume={stub['ambient']:.3f}[r];"
+                 f"[aid2][r]amix=inputs=2:duration=longest:normalize=0[ao]")
+    else:
+        graph = ""
+    return edl, graph
+
+
+def music_track(mpv):
+    # Music only: switch audio to the bed (the external audio track) once the file plays
+    try:
+        for t in mpv.command("get_property", "track-list") or []:
+            if t.get("type") == "audio" and t.get("external"):
+                mpv.command("set_property", "aid", t["id"])
+                return
+    except Exception:
+        pass
+
+
+def set_music(mpv, music):
+    # Load (or clear) the music bed before the next loadfile
+    try:
+        if music:
+            mpv.command("change-list", "audio-files", "set", music[0])
+            mpv.command("set_property", "lavfi-complex", music[1])
+            MUSIC["on"] = True
+        elif MUSIC["on"]:
+            mpv.command("set_property", "lavfi-complex", "")
+            mpv.command("change-list", "audio-files", "clr", "")
+            MUSIC["on"] = False
+    except Exception:
+        MUSIC["on"] = True  # try clearing again next time
+
+
+MUSIC = {"on": True}  # True at start: clear anything a previous run left set
 
 
 # --- Local index proxy (fs42-mkv-proxy): http://127.0.0.1:8742/<item>/<file> ---
