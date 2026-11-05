@@ -1,6 +1,6 @@
 # Render a guide page at the CRT's 720x480 in an off-screen window and save a PNG,
 # without showing anything on the TV. For checking guide themes/mockups.
-# Usage (FS42 venv): python fs42_local/guide_snapshot.py <url> <out.png> [wait_seconds]
+# Usage (FS42 venv): python fs42_local/guide_snapshot.py <url> <out.png> [wait_seconds] [js]
 import os, sys
 
 os.environ.setdefault("DISPLAY", ":0")
@@ -21,13 +21,23 @@ view.setWindowFlags(Qt.FramelessWindowHint | Qt.X11BypassWindowManagerHint | Qt.
 view.setGeometry(-2000, 0, 720, 480)   # off-screen: nothing appears on the TV
 
 
+js = sys.argv[4] if len(sys.argv) > 4 else ""   # optional: run this first, e.g. "tmanBanner({channel_number: 5})"
+
+
 def save():
     ok = view.grab().save(out)
     print(f"saved {out}: {ok}")
     app.quit()
 
 
-view.loadFinished.connect(lambda ok: QTimer.singleShot(wait_ms, save))
+def ready():
+    if js:
+        view.page().runJavaScript(js, 0, lambda r: QTimer.singleShot(500, save))
+    else:
+        save()
+
+
+view.loadFinished.connect(lambda ok: QTimer.singleShot(wait_ms, ready))
 view.load(QUrl(url))
 view.show()
 QTimer.singleShot(wait_ms + 20000, app.quit)   # give up if the page never loads

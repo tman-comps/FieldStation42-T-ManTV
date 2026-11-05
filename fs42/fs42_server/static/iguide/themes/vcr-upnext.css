@@ -1,0 +1,11 @@
+/* Up Next card, "vcr" skin (see vcr.css) */
+:root { --hi: #3cff5a; }
+body, .frame * { font-family: "DejaVu Sans Mono", "Liberation Mono", monospace !important; font-weight: bold; text-transform: uppercase; }
+.plot { text-transform: none; }
+.shadow { text-shadow: 2px 2px 0 #000; }
+.frame { background: #0010b0; border: .4vh solid #fff; box-sizing: border-box; }
+.header { background: #0010b0; border-bottom: .4vh solid #fff; }
+.header .title { color: #fff; }
+.header .title small, .header .clock { color: #3cff5a; }
+.later { border-top: .4vh solid #fff; }
+.ticker { background: #0010b0; border-top: .4vh solid #fff; }

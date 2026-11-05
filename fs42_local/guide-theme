@@ -1,0 +1,37 @@
+#!/bin/bash
+# Pick the look of the guide, channel banner, reminder pop-up and Up Next card.
+#   fs42_local/guide-theme           list the themes (* = in use)
+#   fs42_local/guide-theme cable     switch, then restart FieldStation42 so both guides reload
+# Writes fs42/fs42_server/static/iguide/skin.json (not in git). Themes: iguide/tmantv_theme.js.
+cd "$(dirname "$0")/.." || exit 1
+IG=fs42/fs42_server/static/iguide
+SETTING=$IG/skin.json
+cur=$(grep -o '"skin": *"[^"]*"' "$SETTING" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
+cur=${cur:-ws}
+# names + descriptions straight from the TMAN_SKINS list in tmantv_theme.js
+themes=$(sed -n "/TMAN_SKINS = {/,/};/s/^ *\([a-z0-9_]*\): '\(.*\)',$/\1|\2/p" "$IG/tmantv_theme.js")
+
+if [ -z "$1" ]; then
+  echo "Guide themes:"
+  while IFS='|' read -r n d; do
+    [ "$n" = "$cur" ] && m='*' || m=' '
+    printf ' %s %-7s %s\n' "$m" "$n" "$d"
+  done <<< "$themes"
+  printf '   %-7s %s\n' none 'stock FS42 look (no banner/reminders)'
+  echo "Switch: $0 <name>"
+  exit 0
+fi
+
+name=$(echo "$1" | tr 'A-Z' 'a-z')
+if [ "$name" != none ] && ! grep -q "^$name|" <<< "$themes"; then
+  echo "Unknown theme '$1'. Run $0 to list them."; exit 1
+fi
+printf '{"skin": "%s"}\n' "$name" > "$SETTING"
+echo "Guide theme: $name"
+if [ "$2" = "--no-restart" ]; then
+  echo "Not restarted; the guide picks it up on the next FieldStation42 restart."
+elif [ -x "$HOME/.local/bin/fs42-restart-all" ]; then
+  "$HOME/.local/bin/fs42-restart-all" >/dev/null 2>&1 && echo "FieldStation42 restarted."
+else
+  echo "Restart FieldStation42 to see it."
+fi

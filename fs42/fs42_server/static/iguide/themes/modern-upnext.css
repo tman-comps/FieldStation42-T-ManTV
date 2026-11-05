@@ -1,0 +1,15 @@
+/* Up Next card, "modern" skin (see modern.css) */
+:root { --hi: #2f8cff; --text: #f1f3f5; }
+body, .frame * { font-family: "Cantarell", "Liberation Sans", "DejaVu Sans", Arial, sans-serif !important; }
+.shadow { text-shadow: none; }
+.frame { background: #101317; }
+.header { background: #1d232b; border-bottom: 0; }
+.header .title { color: #f1f3f5; font-weight: bold; }
+.header .title small, .header .clock { color: #a3adba; }
+.show { font-weight: bold; }
+.ep { color: #a3adba; }
+.plot { color: #a3adba; }
+.later { border-top: 1px solid #333c48; }
+.row .t { color: #f1f3f5; }
+.row .n { color: #a3adba; }
+.ticker { background: #1d232b; border-top: 0; color: #a3adba; }

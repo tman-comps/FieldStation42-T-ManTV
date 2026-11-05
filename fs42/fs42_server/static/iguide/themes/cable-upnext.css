@@ -1,0 +1,11 @@
+/* Up Next card, "cable" skin (see cable.css) */
+:root { --hi: #ffd200; }
+body, .frame * { font-family: "Liberation Sans", "Nimbus Sans", Arial, sans-serif !important; font-weight: bold; }
+.shadow { text-shadow: 2px 2px 0 #000; }
+.frame { background: #08166a; }
+.header { background: linear-gradient(#c9ced9, #8d95a8); border-bottom: .5vh solid #020a3c; }
+.header .title, .header .title small, .header .clock { color: #08166a; text-shadow: none; }
+.body { background: #1739b8; margin: 2vh 2vw 0; box-shadow: inset 2px 2px 0 #6f8dff, inset -2px -2px 0 #020a3c; }
+.ep, .plot { font-weight: normal; }
+.later { border-top-color: #6f8dff; }
+.ticker { background: #000; border-top-color: #ffd200; margin-top: 2vh; }

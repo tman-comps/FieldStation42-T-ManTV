@@ -61,6 +61,17 @@ body { font-family: "Star4000", monospace; color: var(--text); }
 <audio id="music" preload="auto"></audio>
 <script src="../fs42_client.js"></script>
 <script src="../common.js"></script>
+<script src="../iguide/tmantv_theme.js"></script>
+<script>
+// Same theme as the guide (iguide/tmantv_theme.js); the look above is the ws one.
+window.tmanResolveSkin().then(skin => {
+  if (!skin || skin === "ws") return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = `../iguide/themes/${skin}-upnext.css`;
+  document.head.appendChild(link);
+});
+</script>
 <script>
 (function () {
   const q = new URLSearchParams(location.search);

@@ -26,7 +26,7 @@ API = "http://127.0.0.1:4242"
 PORT = 4243
 MPV_SOCKET = os.path.join(FS42, "runtime/mpv.socket")
 GUIDE_URL = (API + "/static/iguide/customguide.html?theme=00s&interactive=1"
-             "&skin=ws&show_description=true&slots=3&videos=false&header=T-ManTV")  # skin=ws: WeatherStar look
+             "&show_description=true&slots=3&videos=false&header=T-ManTV")  # look: fs42_local/guide-theme
 IDLE_CLOSE = 120          # seconds without a button press before the guide closes itself
 RELOAD_EVERY = 30 * 60    # reload the hidden page now and then (fresh listings, no leaks)
 KEYS = {"ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Enter", "Home"}

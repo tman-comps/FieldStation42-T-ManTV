@@ -1,0 +1,79 @@
+/* T-ManTV "vcr" skin (2026-11-05): VCR / TV on-screen display. Blue screen, chunky white
+   monospace letters, green for times and labels, no shading, selection shown inverted.
+   Same layout and sizes as ws.css (imported), only colors, fonts and edges change. */
+@import url("ws.css");
+
+:root {
+  --v-blue: #0010b0;
+  --v-white: #ffffff;
+  --v-green: #3cff5a;
+  --v-dim: #b8c4ff;
+  --v-font: "DejaVu Sans Mono", "Liberation Mono", "Noto Mono", monospace;
+}
+
+#guide-wrapper, #guide-wrapper *, #ws-banner, #ws-banner *, #guide-action-toast {
+  font-family: var(--v-font) !important; font-weight: bold; letter-spacing: 0 !important;
+  text-transform: uppercase;
+}
+#guide-wrapper, #ws-banner, #guide-action-toast { text-shadow: 2px 2px 0 #000; }
+#guide-wrapper { background: var(--v-blue); }
+
+#ws-header { background: var(--v-blue); border-bottom: 2px solid var(--v-white); }
+#ws-header .brand { color: var(--v-white); }
+#ws-header .brand small { color: var(--v-green); }
+#ws-clock { color: var(--v-green); }
+
+.ws-panel, #text-panel { background: var(--v-blue); border: 2px solid var(--v-white); box-shadow: none; }
+#ws-video-frame { padding: 3px; }
+.ws-net { color: var(--v-white); }
+.ws-chnum, .ws-label { color: var(--v-green); }
+#selected-program-description { color: var(--v-dim); }
+.ws-vcr .bar { background: var(--v-blue); border: 2px solid var(--v-white); height: 6px; }
+.ws-vcr .fill { background: var(--v-white); }
+.ws-vcr .rem { color: var(--v-green); }
+.ws-next .t { color: var(--v-green); }
+#selected-program-title .ws-code, #ws-banner .code { color: var(--v-green); }
+
+#grid-wrapper { background: var(--v-blue); border: 2px solid var(--v-white); }
+#grid-header, #grid-header .grid-time-slot { background: var(--v-blue); color: var(--v-green); }
+#grid-header { border-bottom: 2px solid var(--v-white); }
+.grid-row, .grid-row:nth-child(odd), .grid-row:nth-child(even) { border-bottom: 2px solid rgba(255, 255, 255, .35); }
+.grid-channel .channel-number { color: var(--v-green); transform: none; }
+.grid-channel .channel-name { color: var(--v-white); }
+.grid-program-block,
+.grid-row:nth-child(even) .grid-program-block,
+.grid-program-block.current {
+  background: transparent !important; box-shadow: inset 2px 0 0 rgba(255, 255, 255, .35) !important;
+}
+.grid-program-block .program-title, .grid-program-block.current .program-title { color: var(--v-white); }
+.grid-row.guide-selected-row .grid-channel { background: var(--v-white); }
+.grid-row.guide-selected-row .grid-channel .channel-number,
+.grid-row.guide-selected-row .grid-channel .channel-name { color: var(--v-blue); text-shadow: none; }
+.grid-program-block.guide-selected,
+.grid-row .grid-program-block.guide-selected.current {
+  background: var(--v-white) !important; outline: none; box-shadow: none !important;
+}
+.grid-program-block.guide-selected .program-title,
+.grid-program-block.guide-selected .ws-time,
+.grid-program-block.guide-selected .ws-np { color: var(--v-blue); text-shadow: none; }
+.grid-program-block .ws-np, .grid-program-block.ws-remind .ws-time { color: var(--v-green); }
+
+#ws-status { background: var(--v-blue); border-top: 2px solid var(--v-white); color: var(--v-white); }
+#ws-status .r { color: var(--v-green); }
+#guide-action-toast { background: var(--v-blue); color: var(--v-white); border: 2px solid var(--v-white); }
+
+/* banner + reminder pop-up */
+#ws-banner { background: var(--v-blue); border: 2px solid var(--v-white); box-shadow: 0 0 0 2px #000; }
+#ws-banner .top { background: var(--v-blue); border-bottom: 2px solid var(--v-white); }
+#ws-banner .tab { background: var(--v-white); border-right: 0; text-shadow: none; }
+#ws-banner .num, #ws-banner .net { color: var(--v-blue); }
+#ws-banner .show { color: var(--v-white); }
+#ws-banner .brand, #ws-banner .rem { color: var(--v-green); }
+#ws-banner .clock { color: var(--v-white); }
+#ws-banner .time { color: var(--v-green); }
+#ws-banner .bar { background: var(--v-blue); border: 2px solid var(--v-white); box-shadow: none; }
+#ws-banner .bar i { background: var(--v-white); }
+#ws-banner .next, #ws-banner .keys { color: var(--v-dim); }
+#ws-banner .next b, #ws-banner .keys b { color: var(--v-green); }
+#ws-banner .desc { color: var(--v-dim); text-transform: none; }
+#selected-program-description { text-transform: none; }

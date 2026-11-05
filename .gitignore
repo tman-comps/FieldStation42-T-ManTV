@@ -199,3 +199,6 @@ node_modules/
 # T-ManTV: copied from the WeatherStar app, not ours to publish
 fs42/fs42_server/static/upnext/music/
 fs42/fs42_server/static/upnext/fonts/
+
+# T-ManTV guide theme setting (fs42_local/guide-theme)
+fs42/fs42_server/static/iguide/skin.json

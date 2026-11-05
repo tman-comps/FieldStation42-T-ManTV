@@ -1,0 +1,83 @@
+/* T-ManTV "cable" skin (2026-11-05): late-90s digital cable box look. Flat royal-blue
+   boxes with chunky bevels, a yellow highlight bar, plain bold sans text. Same layout and
+   sizes as ws.css (imported), only colors, fonts and edges change. */
+@import url("ws.css");
+
+:root {
+  --c-bg: #08166a;
+  --c-box: #1739b8;
+  --c-box-dark: #0d2483;
+  --c-hi: #6f8dff;
+  --c-lo: #020a3c;
+  --c-yellow: #ffd200;
+  --c-cyan: #9fe4ff;
+  --c-font: "Liberation Sans", "Nimbus Sans", Arial, Helvetica, sans-serif;
+  --bevel: inset 2px 2px 0 var(--c-hi), inset -2px -2px 0 var(--c-lo);
+}
+
+#guide-wrapper, #guide-wrapper *, #ws-banner, #ws-banner *, #guide-action-toast {
+  font-family: var(--c-font) !important; letter-spacing: 0 !important;
+}
+#guide-wrapper, #ws-banner, #guide-action-toast { text-shadow: 1px 1px 0 #000; }
+#guide-wrapper { background: var(--c-bg); }
+
+#ws-header { background: linear-gradient(#c9ced9, #8d95a8); border-bottom: 2px solid var(--c-lo); }
+#ws-header .brand { color: var(--c-bg); font-weight: bold; text-shadow: none; }
+#ws-header .brand small { color: #26304f; font-weight: bold; }
+#ws-clock { color: #000; font-weight: bold; text-shadow: none; }
+
+.ws-panel, #text-panel { background: var(--c-box); border: 0; box-shadow: var(--bevel); }
+#ws-video-frame { padding: 5px; }
+.ws-net { color: var(--c-yellow); font-weight: bold; }
+.ws-chnum { color: var(--c-cyan); font-weight: bold; }
+.ws-label { color: var(--c-yellow); font-weight: bold; }
+#selected-program-title { font-weight: bold; }
+#selected-program-description { color: #e6ecff; }
+.ws-vcr .bar { background: var(--c-lo); border: 1px solid var(--c-hi); }
+.ws-vcr .fill { background: var(--c-yellow); }
+.ws-vcr .rem { color: var(--c-cyan); }
+.ws-next .t { color: var(--c-yellow); font-weight: bold; }
+#selected-program-title .ws-code, #ws-banner .code { color: var(--c-yellow); }
+
+#grid-wrapper { background: var(--c-box-dark); border: 2px solid var(--c-lo); }
+#grid-header, #grid-header .grid-time-slot { background: #000; color: var(--c-yellow); font-weight: bold; }
+.grid-row, .grid-row:nth-child(odd), .grid-row:nth-child(even) { border-bottom: 2px solid var(--c-lo); }
+.grid-channel { background: var(--c-box); box-shadow: var(--bevel); }
+.grid-channel .channel-number { color: #fff; font-weight: bold; transform: none; }
+.grid-channel .channel-name { color: var(--c-cyan); font-weight: bold; }
+.grid-program-block,
+.grid-row:nth-child(even) .grid-program-block,
+.grid-program-block.current {
+  background: var(--c-box) !important; box-shadow: var(--bevel) !important;
+}
+.grid-program-block .program-title, .grid-program-block.current .program-title { color: #fff; }
+.grid-row.guide-selected-row .grid-channel { background: var(--c-yellow); }
+.grid-row.guide-selected-row .grid-channel .channel-number,
+.grid-row.guide-selected-row .grid-channel .channel-name { color: #000; text-shadow: none; }
+.grid-program-block.guide-selected,
+.grid-row .grid-program-block.guide-selected.current {
+  background: var(--c-yellow) !important; outline: none;
+  box-shadow: inset 2px 2px 0 #fff3a0, inset -2px -2px 0 #8a6a00 !important;
+}
+.grid-program-block.guide-selected .program-title,
+.grid-program-block.guide-selected .ws-time,
+.grid-program-block.guide-selected .ws-np { color: #000; text-shadow: none; }
+.grid-program-block .ws-np, .grid-program-block.ws-remind .ws-time { color: var(--c-yellow); }
+
+#ws-status { background: #000; border-top: 2px solid var(--c-hi); font-weight: bold; }
+#ws-status .r { color: var(--c-yellow); }
+#guide-action-toast { background: #000; color: var(--c-yellow); border: 2px solid var(--c-yellow); font-weight: bold; }
+
+/* banner + reminder pop-up */
+#ws-banner { background: var(--c-box); border: 0; box-shadow: var(--bevel), 0 0 0 2px #000; }
+#ws-banner .top { background: #000; border-bottom: 2px solid var(--c-hi); }
+#ws-banner .tab { background: var(--c-yellow); border-right: 2px solid #000; text-shadow: none; }
+#ws-banner .num, #ws-banner .net { color: #000; font-weight: bold; }
+#ws-banner .brand, #ws-banner .rem { color: var(--c-yellow); font-weight: bold; }
+#ws-banner .clock { color: #fff; font-weight: bold; }
+#ws-banner .title { font-weight: bold; }
+#ws-banner .time { color: var(--c-yellow); font-weight: bold; }
+#ws-banner .bar { background: var(--c-lo); border: 1px solid var(--c-hi); box-shadow: none; }
+#ws-banner .bar i { background: var(--c-yellow); }
+#ws-banner .next, #ws-banner .keys { color: var(--c-cyan); }
+#ws-banner .next b, #ws-banner .keys b { color: var(--c-yellow); font-weight: bold; }

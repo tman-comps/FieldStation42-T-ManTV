@@ -1,0 +1,86 @@
+/* T-ManTV "modern" skin (2026-11-05): clean dark DVR look, nothing retro. Charcoal cards
+   with rounded corners, white text, one blue accent. Same layout and sizes as ws.css
+   (imported), only colors, fonts and edges change. */
+@import url("ws.css");
+
+:root {
+  --m-bg: #101317;
+  --m-card: #1d232b;
+  --m-card2: #262e38;
+  --m-line: #333c48;
+  --m-text: #f1f3f5;
+  --m-dim: #a3adba;
+  --m-accent: #2f8cff;
+  --m-font: "Cantarell", "Liberation Sans", "DejaVu Sans", Arial, sans-serif;
+}
+
+#guide-wrapper, #guide-wrapper *, #ws-banner, #ws-banner *, #guide-action-toast {
+  font-family: var(--m-font) !important; letter-spacing: 0 !important;
+}
+#guide-wrapper, #ws-banner, #guide-action-toast { text-shadow: none; }
+#guide-wrapper { background: var(--m-bg); color: var(--m-text); }
+
+#ws-header { background: var(--m-bg); border-bottom: 1px solid var(--m-line); }
+#ws-header .brand { color: var(--m-text); font-weight: bold; }
+#ws-header .brand small { color: var(--m-dim); }
+#ws-clock { color: var(--m-text); }
+
+.ws-panel, #text-panel { background: var(--m-card); border: 0; box-shadow: none; border-radius: 8px; }
+#ws-video-frame { padding: 0; overflow: hidden; }
+#video-panel { border-radius: 8px; }
+.ws-net { color: var(--m-text); font-weight: bold; text-transform: none; }
+.ws-chnum { color: var(--m-dim); }
+.ws-label { color: var(--m-accent); font-weight: bold; }
+#selected-program-title { font-weight: bold; }
+#selected-program-description { color: var(--m-dim); }
+.ws-vcr .bar { height: 5px; background: var(--m-line); border: 0; border-radius: 3px; overflow: hidden; }
+.ws-vcr .fill { background: var(--m-accent); }
+.ws-vcr .rem { color: var(--m-dim); }
+.ws-next { color: var(--m-dim); }
+.ws-next .t { color: var(--m-text); }
+.ws-next .ws-label { color: var(--m-dim); }
+#selected-program-title .ws-code, #ws-banner .code { color: var(--m-dim); font-weight: normal; }
+
+#grid-wrapper { background: var(--m-bg); border: 0; }
+#grid-header, #grid-header .grid-time-slot { background: var(--m-bg); color: var(--m-dim); }
+#grid-header { border-bottom: 1px solid var(--m-line); }
+.grid-row, .grid-row:nth-child(odd), .grid-row:nth-child(even) { border-bottom: 1px solid var(--m-line); }
+.grid-channel .channel-number { color: var(--m-text); font-weight: bold; transform: none; }
+.grid-channel .channel-name { color: var(--m-dim); text-transform: none; }
+.grid-program-block,
+.grid-row:nth-child(even) .grid-program-block,
+.grid-program-block.current {
+  background: transparent !important; box-shadow: inset 1px 0 0 var(--m-line) !important;
+}
+.grid-program-block .program-title, .grid-program-block.current .program-title { color: var(--m-text); }
+.grid-row.guide-selected-row .grid-channel { background: var(--m-card2); }
+.grid-program-block.guide-selected,
+.grid-row .grid-program-block.guide-selected.current {
+  background: var(--m-accent) !important; outline: none; border-radius: 6px;
+  box-shadow: none !important;
+}
+.grid-program-block.guide-selected .program-title,
+.grid-program-block.guide-selected .ws-time,
+.grid-program-block.guide-selected .ws-np { color: #fff; }
+.grid-program-block .ws-np, .grid-program-block.ws-remind .ws-time { color: var(--m-accent); }
+
+#ws-status { background: var(--m-bg); border-top: 1px solid var(--m-line); color: var(--m-dim); }
+#ws-status .r { color: var(--m-dim); }
+#guide-action-toast { background: var(--m-card2); color: var(--m-text); border: 0; border-radius: 8px; }
+
+/* banner + reminder pop-up */
+#ws-banner { background: var(--m-card); border: 0; box-shadow: none; border-radius: 10px; overflow: hidden; }
+#ws-banner .top { background: var(--m-card2); border-bottom: 0; }
+#ws-banner .tab { background: var(--m-accent); border-right: 0; }
+#ws-banner .num, #ws-banner .net { color: #fff; font-weight: bold; }
+#ws-banner .net { text-transform: none; }
+#ws-banner .show { color: var(--m-text); }
+#ws-banner .brand { color: var(--m-dim); }
+#ws-banner .rem { color: var(--m-accent); font-weight: bold; }
+#ws-banner .clock { color: var(--m-text); }
+#ws-banner .title { font-weight: bold; }
+#ws-banner .time { color: var(--m-text); }
+#ws-banner .bar { height: 5px; background: var(--m-line); border: 0; box-shadow: none; border-radius: 3px; overflow: hidden; }
+#ws-banner .bar i { background: var(--m-accent); }
+#ws-banner .next, #ws-banner .keys, #ws-banner .desc { color: var(--m-dim); }
+#ws-banner .next b, #ws-banner .keys b { color: var(--m-text); font-weight: bold; }

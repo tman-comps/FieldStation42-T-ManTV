@@ -1,10 +1,14 @@
-// T-ManTV WeatherStar skin add-on for the i-Guide (only active with ?skin=ws).
-// customguide.js still builds the 00s layout and does all navigation/tuning; this file
-// wraps a few of its functions to add the WeatherStar pieces: header bar + clock,
-// live-picture frame on the left, info panel (NOW PLAYING, progress bar, UP NEXT),
-// start times under each show, WeatherStar time labels and the status bar.
-(function () {
-  if (new URLSearchParams(window.location.search).get('skin') !== 'ws') return;
+// T-ManTV skin add-on for the i-Guide (any skin from tmantv_theme.js; installed by
+// customguide.js init() once the skin is known). customguide.js still builds the 00s layout
+// and does all navigation/tuning; this file wraps a few of its functions to add the T-ManTV
+// pieces: header bar + clock, live-picture frame on the left, info panel (NOW PLAYING,
+// progress bar, UP NEXT), start times under each show, time labels, the status bar, the
+// channel-change banner and reminders. The ws-* ids/classes are shared by every theme;
+// themes/<skin>.css styles them.
+window.tmanSkinInstall = function (skin) {
+  document.body.classList.add(`skin-${skin}`);
+  const brand = (typeof HEADER_TEXT === 'string' && HEADER_TEXT) || 'T-ManTV';
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const pad = n => String(n).padStart(2, '0');
   const clockText = d => {
@@ -53,7 +57,7 @@
 
     const header = document.createElement('div');
     header.id = 'ws-header';
-    header.innerHTML = '<div class="brand">T-MANTV<small>TV GUIDE</small></div><div id="ws-clock"></div>';
+    header.innerHTML = `<div class="brand">${esc(brand.toUpperCase())}<small>TV GUIDE</small></div><div id="ws-clock"></div>`;
     listings.insertBefore(header, top);
 
     // Frame around the live box; #video-panel itself stays the exact picture area.
@@ -81,7 +85,7 @@
 
     const status = document.createElement('div');
     status.id = 'ws-status';
-    status.innerHTML = '<span id="ws-count"></span><span class="r">T-MANTV</span>';
+    status.innerHTML = `<span id="ws-count"></span><span class="r">${esc(brand.toUpperCase())}</span>`;
     listings.appendChild(status);
 
     const clock = document.getElementById('ws-clock');
@@ -154,7 +158,7 @@
       <div class="top">
         <div class="tab"><span class="num" id="wsb-num"></span><span class="net" id="wsb-net"></span></div>
         <span class="rem">REMINDER</span><span class="show" id="wsb-show"></span>
-        <div class="spacer"></div><span class="brand">T-ManTV</span><span class="clock" id="wsb-clock"></span>
+        <div class="spacer"></div><span class="brand">${esc(brand)}</span><span class="clock" id="wsb-clock"></span>
       </div>
       <div class="body">
         <div class="title"><span id="wsb-title"></span><span class="code" id="wsb-code"></span></div>
@@ -362,4 +366,4 @@
 
   const baseInfo = window.updateSelectedProgramInfo;
   window.updateSelectedProgramInfo = function () { baseInfo(); updateInfo(); };
-})();
+};
