@@ -1,6 +1,6 @@
 # T-ManTV changes to FieldStation42 code
 
-Where each change lives. Most of these used to be find/replace entries in `fs42_local/apply_patches.py`; the code is now committed. In-code comments are tagged `FS42 local:`.
+Where each change lives. For how to use each feature, see the [feature guides](docs/tmantv/README.md). Most of these used to be find/replace entries in `fs42_local/apply_patches.py`; the code is now committed. In-code comments are tagged `FS42 local:`.
 
 | Change | Where |
 |---|---|
@@ -24,13 +24,13 @@ Where each change lives. Most of these used to be find/replace entries in `fs42_
 | Guide: short blocks, ended shows hidden, `.program-desc`, 90s CRT theme | `fs42/fs42_server/static/customguide/` |
 | Logo fade in/out | `fs42/osd/logo_display.py` (old OSD only; logos are off) |
 | Rating bug (TV-Y7, PG-13… top-right for 12 s when a show starts; never on ads). From MoeFwacky's fork, plus: keeps image shape, reads a show folder's `tvshow.nfo` when a file has no rating | `fs42/osd/rating_display.py`, `nfo_agent.py` `folder_rating`, `media_processor.py` `extract_metadata`, `tmantv.content_rating`, `station_player.py` status socket; images in `osd/ratings/` |
-
 | Up Next card before each episode (channels with `up_next`); stream-load lateness eats into the card so episodes start from the top | `fs42/autobump_agent.py` `up_next_bump`, `fs42/liquid_schedule.py`, `station_player.py`; page `fs42/fs42_server/static/upnext/upnext.html` |
 | Commercial-free channels: a straight-on episode up to 120 s late starts from the top | `station_player.py` `play_slot` |
 | Commercial and bump play counts saved with each schedule run (least-played ads first across days) | `fs42/liquid_schedule.py`; test `test/test_break_play_counts.py` |
 | Channel-change info banner (WeatherStar bar, 4 s) | `fs42_local/guide_overlay.py`, `static/iguide/tmantv_skin.js` `tmanBanner` |
 | i-Guide Left/Right = 30 min per press, schedule windows cached and prefetched | `static/iguide/tmantv_skin.js` |
 | Reminders: OK on a future show sets/clears one (`runtime/reminders.json`); pop-up at start time, OK = watch, Back = dismiss | `fs42_local/guide_overlay.py`, `fs42_local/remote.py` `reminder_key`, `tmantv_skin.js` `tmanReminder`, `themes/ws.css` |
+| Music beds for stubs (`#music=`, `#ambient=`): a clock-synced bed from `runtime/beds` mixed in the same mpv | `tmantv.music_setup` / `set_music` / `music_track`, `station_player.py` `play_file` |
 
 ## Up Next setup
 

@@ -234,3 +234,56 @@ body.ws-reminder #ws-banner .keys { display: block; font-size: 14px; color: var(
 body.ws-reminder #ws-banner .keys b { font-family: "Star4000 Large"; font-weight: normal; font-size: 12px;
   color: var(--ws-yellow); margin: 0 5px 0 8px; }
 body.ws-reminder #ws-banner .next { display: none; }
+
+/* CRT readability (Tristan 2026-11-05: channel names cut off, text small/blurry on the CRT).
+   Bigger text everywhere, 4 taller grid rows instead of 5, wider channel column with names on
+   up to 2 lines. Grid height stays ~the same, so the live box keeps its size. */
+#ws-header { flex-basis: 26px; }
+#ws-header .brand { font-size: 20px; }
+#ws-header .brand small { font-size: 15px; }
+#ws-clock { font-size: 18px; }
+
+.ws-net { font-size: 18px; }
+.ws-chnum { font-size: 15px; }
+.ws-label { font-size: 15px; }
+#selected-program-title { font-size: 22px; line-height: 26px; }
+#selected-program-description { font-size: 16px; line-height: 18px; max-height: 36px; }
+.ws-vcr { font-size: 16px; margin: 3px 0 2px; }
+.ws-next { font-size: 17px; }
+.ws-next .t { min-width: 86px; }
+#selected-program-title .ws-code { font-size: 17px; }
+
+#grid-wrapper { flex-basis: 242px; }  /* 2px border + 24px times + 4 rows x 54px */
+#grid-header { flex-basis: 24px; font-size: 18px; }
+#grid-header .grid-time-slot { font-size: 18px; }
+#grid-header .grid-channel-stub,
+.grid-channel { width: 196px; flex-basis: 196px; }
+.grid-row, .grid-row:nth-child(odd), .grid-row:nth-child(even) { height: 54px; }
+.grid-channel { gap: 8px; padding-right: 4px; }
+.grid-channel .channel-number { font-size: 34px; width: 40px; flex-basis: 40px; padding-top: 7px; }
+#grid-header .grid-channel-stub { line-height: 24px; padding-top: 3px; }  /* Star4000 Large tops */
+.grid-channel .channel-name {
+  font-family: "Star4000 Large"; font-size: 17px; line-height: 21px; padding-top: 3px;
+  white-space: normal; overflow-wrap: normal; max-height: 45px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.grid-program-block .program-title,
+.grid-program-block.current .program-title { font-size: 19px; line-height: 23px; }
+.grid-program-block .ws-time { font-size: 16px; }
+
+#ws-status { flex-basis: 22px; font-size: 15px; }
+
+/* Full show titles (Tristan 2026-11-05): titles wrap to 2 lines; the start time under each show is
+   dropped (the info box shows it). Reminded shows keep 1 title line + "time REMIND". */
+.grid-program-block .program-title,
+.grid-program-block.current .program-title {
+  white-space: normal; overflow-wrap: normal; max-height: 46px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.grid-program-block .ws-time { display: none; }
+.grid-program-block.ws-remind .ws-time { display: block; }
+.grid-program-block.ws-remind .program-title { -webkit-line-clamp: 1; max-height: 23px; }
+/* Music channels: one NOW PLAYING block (tmantv_skin.js collapseMusic) */
+.grid-program-block .ws-np { color: var(--ws-yellow); }
+#selected-program-title.ws-wrap { white-space: normal; font-size: 20px; line-height: 24px; max-height: 48px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
