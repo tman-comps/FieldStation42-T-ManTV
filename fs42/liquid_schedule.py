@@ -303,6 +303,15 @@ class LiquidSchedule:
         return None
 
     @staticmethod
+    def _get_block_path(block):
+        """T-ManTV: file path of a single-content block (None for clip/off-air/loop blocks)."""
+        if isinstance(block, (LiquidOffAirBlock, LiquidWebBlock, LiquidLoopBlock, LiquidClipBlock)):
+            return None
+        if isinstance(block, LiquidBlock) and block.content and not isinstance(block.content, list):
+            return block.content.path
+        return None
+
+    @staticmethod
     def _get_station_tags(station_conf):
         """Return the set of all content tags used in a station's schedule config.
         Tags come from slot definitions, clip_shows keys, and fallback_tag.
@@ -538,6 +547,8 @@ class LiquidSchedule:
                 self._get_block_tag(nn)  if nn  else None,
                 self._get_block_tag(nnn) if nnn else None,
             ]
+            # T-ManTV: the next block's file, for episode-matched "Next" bumps (next/ep--<tag>--<text>)
+            block.lookahead.append(self._get_block_path(n) if n else None)
 
             block.make_plan(self.catalog)
             if block.content:

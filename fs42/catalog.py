@@ -678,12 +678,33 @@ class ShowCatalog:
                         if next_next_next_tag:
                             candidates = self._augment_candidates(candidates, f"next/{current_tag}--{next_tag}--{next_next_tag}--{next_next_next_tag}", seconds, when)
 
+        # T-ManTV: episode-matched "Next" bumps live in next/ep--<tag>--<text>, where <text> is part of one
+        # episode's file name (e.g. next/ep--dexters_lab--S02E05). They play only as the last bump before
+        # that exact episode, so a promo showing an episode's footage never airs before a different one.
+        if position == ShowCatalog.postbump and lookahead and len(lookahead) > 4 and lookahead[4]:
+            episode_bumps = self._episode_bumps(lookahead[1], lookahead[4], seconds, when)
+            if episode_bumps:
+                return self._lowest_count(episode_bumps)
+
         if not candidates:
             raise MatchingContentNotFound(
                 f"Could not find candidate video for tag={base_tag} under {seconds} in len - maybe add some shorter content?"
             )
 
         return self._lowest_count(candidates)
+
+    def _episode_bumps(self, next_tag, next_path, seconds, when):
+        """T-ManTV: bumps from next/ep--<next_tag>--<text> folders whose <text> is in the next file's name."""
+        if not next_tag:
+            return []
+        prefix = f"next/ep--{next_tag}--"
+        name = os.path.basename(next_path).lower()
+        matches = []
+        for key, clips in self.clip_index.items():
+            if key.startswith(prefix) and key[len(prefix):].lower() in name:
+                matches += [c for c in clips if 1 <= c.duration < seconds
+                            and MediaProcessor._test_candidate_hints(c.hints, when)]
+        return matches
 
     def find_commercial(self, seconds, when, commercial_dir):
         com_tag = commercial_dir if commercial_dir else self.config["commercial_dir"]
