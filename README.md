@@ -14,6 +14,10 @@ Upstream's README (setup, configuration, scheduling) is still the main manual: [
 |---|---|---|
 | ![Shows marked REMIND in the guide](docs/screenshots/iguide-reminders.png) | ![Reminder pop-up](docs/screenshots/reminder-popup.png) | ![Up Next card](docs/screenshots/upnext.png) |
 
+| Channel-change banner |
+|---|
+| ![Info banner after a channel change](docs/screenshots/channel-banner.png) |
+
 *Screenshots are 720x480 (the CRT's size) and use demo listings, not a real lineup.*
 
 Based on upstream FieldStation42 `main` as of 2026-10-24 (`daed3b9`). `tmantv` is the branch to use; `tmantv-update` is where new work lands first.
