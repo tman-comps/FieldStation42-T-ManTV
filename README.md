@@ -10,7 +10,13 @@ Upstream's README (setup, configuration, scheduling) is still the main manual: [
 |---|---|---|
 | ![i-Guide](docs/screenshots/iguide.jpg) | ![On Demand menu](docs/screenshots/ondemand-home.jpg) | ![On Demand show page](docs/screenshots/ondemand-show.jpg) |
 
-*Screenshots use demo listings, not a real lineup.*
+| Guide reminders | Reminder pop-up | Up Next card |
+|---|---|---|
+| ![Shows marked REMIND in the guide](docs/screenshots/iguide-reminders.png) | ![Reminder pop-up](docs/screenshots/reminder-popup.png) | ![Up Next card](docs/screenshots/upnext.png) |
+
+*Screenshots are 720x480 (the CRT's size) and use demo listings, not a real lineup.*
+
+Based on upstream FieldStation42 `main` as of 2026-10-24 (`daed3b9`). `tmantv` is the branch to use; `tmantv-update` is where new work lands first.
 
 ## What's added
 
@@ -20,7 +26,13 @@ Upstream's README (setup, configuration, scheduling) is still the main manual: [
 - **CRT-friendly picture.** mpv shrinks the picture a little during effects (overscan), keeps a stub's side-bar crop through channel-change static, and shows a big green channel number on tune.
 - **Boot and autostart** (`fs42_local/start_fs42.sh`): waits for the NAS while showing a standby splash, starts the player, and keeps the schedule filled (`keep_schedule.py`). Helpers in `pi/home/.local/bin`: `fs42-start`, `fs42-stop`, `fs42-restart`, `fs42-log`, and more.
 - **Remote control** (`fs42_local/remote.py`): an IR/USB remote via evdev plus a phone remote page on port 4244. Number keys tune channels, and there are buttons for the guide, On Demand and last channel. TV power/volume can optionally go to a Home Assistant IR webhook (`TV_IR_HOOK` in `boot.conf`).
-- **i-Guide**: an interactive on-screen guide channel you can scroll with the remote (based on the FieldStation42Expanded i-Guide), with themes and a live picture overlay.
+- **i-Guide**: an interactive on-screen guide channel you can scroll with the remote (based on the FieldStation42Expanded i-Guide), with themes and a live picture overlay. Left/Right move 30 minutes per press.
+- **Reminders**: in the guide, OK on a future show sets a reminder (it shows as REMIND). When the show starts and you're on another channel, a pop-up offers OK = watch, Back = dismiss (60 s). Kept in `runtime/reminders.json` by `fs42_local/guide_overlay.py`.
+- **Channel-change info banner**: a WeatherStar-style bar with the show, time, progress and what's next, for 4 s after each tune.
+- **Up Next card**: a WeatherStar-style card before each episode on channels with `up_next` set (show, episode, plot, and the next two). See [TMANTV-CHANGES.md](TMANTV-CHANGES.md#up-next-setup).
+- **Rating bug**: TV-Y7, PG-13 and so on in the corner when a show starts (never on ads), read from NFOs. See [TMANTV-CHANGES.md](TMANTV-CHANGES.md#rating-bug-setup).
+- **Better ad rotation**: commercial and bump play counts are saved with each schedule run, so the least-played ads really go first across days.
+- **Stays on the clock**: a late block starts its show from the top and drops ads until on time; on commercial-free channels a slightly late episode starts from the top instead of skipping in.
 - **On Demand**: a menu of shows and movies from your catalog. You open it from the remote or by dialing 99, and it picks up where you left off. `pi/home/ondemand_export.py` builds the menu nightly from `confs/`.
 - **Newspaper TV guide** (`extras/newspaper-guide/`): a printable, newspaper-style web guide on port 3000.
 - Smaller fixes: a named `station_42.py -r` doesn't trim the file cache, seek at load (no gap before the picture), NFO plot for music videos, short guide blocks, and ended shows hidden in the guide.

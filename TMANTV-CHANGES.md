@@ -25,6 +25,23 @@ Where each change lives. Most of these used to be find/replace entries in `fs42_
 | Logo fade in/out | `fs42/osd/logo_display.py` (old OSD only; logos are off) |
 | Rating bug (TV-Y7, PG-13… top-right for 12 s when a show starts; never on ads). From MoeFwacky's fork, plus: keeps image shape, reads a show folder's `tvshow.nfo` when a file has no rating | `fs42/osd/rating_display.py`, `nfo_agent.py` `folder_rating`, `media_processor.py` `extract_metadata`, `tmantv.content_rating`, `station_player.py` status socket; images in `osd/ratings/` |
 
+| Up Next card before each episode (channels with `up_next`); stream-load lateness eats into the card so episodes start from the top | `fs42/autobump_agent.py` `up_next_bump`, `fs42/liquid_schedule.py`, `station_player.py`; page `fs42/fs42_server/static/upnext/upnext.html` |
+| Commercial-free channels: a straight-on episode up to 120 s late starts from the top | `station_player.py` `play_slot` |
+| Commercial and bump play counts saved with each schedule run (least-played ads first across days) | `fs42/liquid_schedule.py`; test `test/test_break_play_counts.py` |
+| Channel-change info banner (WeatherStar bar, 4 s) | `fs42_local/guide_overlay.py`, `static/iguide/tmantv_skin.js` `tmanBanner` |
+| i-Guide Left/Right = 30 min per press, schedule windows cached and prefetched | `static/iguide/tmantv_skin.js` |
+| Reminders: OK on a future show sets/clears one (`runtime/reminders.json`); pop-up at start time, OK = watch, Back = dismiss | `fs42_local/guide_overlay.py`, `fs42_local/remote.py` `reminder_key`, `tmantv_skin.js` `tmanReminder`, `themes/ws.css` |
+
+## Up Next setup
+
+Add `up_next` inside a station's `station_conf`. All keys are optional:
+
+```json
+"up_next": { "duration": 20, "accent": "#ff9a1a", "ticker": "Stay tuned!", "music": "0" }
+```
+
+`duration` is the card length in seconds. `header` replaces the network name under "Up Next"; `accent` is the header color. Music is off unless you put WeatherStar-style tracks in `static/upnext/music/` as `ws01.mp3` … `ws12.mp3` (not in the repo); `"music": "0"` skips it.
+
 ## Rating bug setup
 
 The rating comes from `<mpaa>` or `<certification>` in a file's own `.nfo`, or else from the nearest `tvshow.nfo` (file's folder, up to 3 levels up; works for `.strm` stubs). Movies only use their own NFO. It is saved at catalog build, so rebuild the catalog after adding ratings. The image is `osd/ratings/<RATING>.png` (name match ignores case; `US:` and `Rated ` are dropped). No rating or no image = no bug.

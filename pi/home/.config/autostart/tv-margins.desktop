@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Name=TV margins
+Exec=sh -c "$HOME/.local/bin/tv-margins"
