@@ -20,6 +20,7 @@ from fs42.path_query import PathQuery
 from fs42.station_manager import StationManager
 from fs42.liquid_io import LiquidIO
 from fs42.autobump_agent import AutoBumpAgent
+from fs42.multipart import MultipartIndex
 
 # logging.basicConfig(format="%(asctime)s %(levelname)s:%(name)s:%(message)s", level=logging.INFO)
 
@@ -40,6 +41,9 @@ class LiquidSchedule:
         # self.conf = TagHintReader.smooth_tags(conf)
         self.conf = conf
         self.catalog = ShowCatalog(conf)
+        self.multipart = MultipartIndex(self.catalog)
+        # T-ManTV: the rest of a multi-part story, played next before any new pick
+        self._pending_parts = []
         self._load_blocks()
 
     def _calc_target_duration(self, duration, increment=None, break_info=None, break_strategy=None):
@@ -178,6 +182,21 @@ class LiquidSchedule:
                 else:
                     raise
 
+            # T-ManTV: a picked Part 2+ plays from Part 1, and the later parts follow
+            if candidate:
+                chain = self.multipart.chain_for(candidate)
+                if len(chain) > 1:
+                    if chain[0].path != candidate.path:
+                        candidate.count -= 1
+                        chain[0].count += 1
+                        candidate = chain[0]
+                    self._pending_parts = chain[1:]
+
+        return self._make_block(candidate, slot_config, tag_str, current_mark, first_in_slot, seq_key)
+
+    def _make_block(self, candidate, slot_config, tag_str, current_mark, first_in_slot, seq_key=None):
+        new_block = None
+        next_mark = None
         if candidate:
 
             the_match =  PathQuery.match_any_from_base(candidate.path, self.conf["content_dir"], self.conf["clip_shows"].keys())
@@ -463,6 +482,20 @@ class LiquidSchedule:
             if this_slot_number != slot_number:
                 first_in_slot = True
                 slot_number = this_slot_number
+
+            # T-ManTV: finish a multi-part story first (it doesn't use up a shuffle turn)
+            if self._pending_parts and slot_config and slot_config.get("tags"):
+                part = self._pending_parts.pop(0)
+                part.count += 1
+                try:
+                    new_block, next_mark = self._make_block(part, slot_config, part.tag, current_mark, first_in_slot)
+                    new_blocks.append(new_block)
+                    self._register_exclusion(exclusion_index, new_block)
+                    current_mark = next_mark
+                    continue
+                except ClipShowKickBack:
+                    self._pending_parts = []
+            self._pending_parts = []
 
             tag_str,tag_index = SlotReader.get_tag_from_slot(slot_config, current_mark)
 

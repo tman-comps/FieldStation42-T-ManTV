@@ -8,6 +8,9 @@ from fs42 import timings
 
 class SlotReader:
 
+    # T-ManTV: shuffled-deck state for random_tags, keyed by the slot's tag list
+    _decks = {}
+
     @staticmethod
     def get_tag_from_slot(slot, when: datetime):
         response = None
@@ -22,7 +25,16 @@ class SlotReader:
 
             if type(tags) is list:
                 if is_random:
-                    tag_index = random.randrange(len(tags))
+                    # T-ManTV: deal the tags like a shuffled deck - every tag gets one
+                    # turn in random order, then reshuffle - so shows come up equally
+                    # instead of drifting apart like dice rolls
+                    key = tuple(tags)
+                    deck = SlotReader._decks.get(key)
+                    if not deck:
+                        deck = list(range(len(tags)))
+                        random.shuffle(deck)
+                        SlotReader._decks[key] = deck
+                    tag_index = deck.pop()
                     response = tags[tag_index]
                 else:
                     # first, figure out what our segments are
